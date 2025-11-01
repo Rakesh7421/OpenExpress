@@ -3,6 +3,24 @@ import { AppVersion } from '../types';
 import { Icon } from './common/Icon';
 import { DEVELOPER_SIDEBAR_ITEMS, CLIENT_SIDEBAR_ITEMS } from '../constants';
 
+// --- Type Definitions for API Action Tester ---
+interface ApiActionInput {
+  name: string;
+  label: string;
+  type: 'textarea' | 'file' | 'text';
+  placeholder?: string;
+}
+
+interface ApiAction {
+  id: string;
+  label: string;
+  platform: 'Meta' | 'X (Twitter)' | 'LinkedIn' | 'TikTok';
+  endpoint: string;
+  method: 'GET' | 'POST';
+  inputs: ApiActionInput[];
+  description: string;
+}
+
 interface ContentPanelProps {
   activeItem: string;
   onClose: () => void;
@@ -563,100 +581,216 @@ const IntegrationsContent: React.FC = () => {
     );
 };
 
-const docStructure = {
+// --- API Action Tester Components & Data ---
+
+const apiActionStructure: Record<string, any> = {
   'Meta': {
-    'Application Walkthrough': '/server/branding/connect_accounts/meta/application_walkthrough.js',
-    'OAuth Flow': '/server/branding/connect_accounts/meta/OAuth.js',
     'Test Scopes': {
-      'Post Videos to Page': '/server/branding/connect_accounts/meta/Test_scopes/Test_scopes_for_post_videos_in_page.js',
-      'Post Videos to Group': '/server/branding/connect_accounts/meta/Test_scopes/Test_scopes_for_post_videos_in_group.js',
-    }
+      'Post Video to Page': {
+        id: 'meta-post-video-page',
+        label: 'Post Video to Page',
+        platform: 'Meta',
+        endpoint: '/{page-id}/videos',
+        method: 'POST',
+        description: "Simulates uploading a video to a connected Facebook Page. Requires 'pages_manage_posts' scope.",
+        inputs: [
+          { name: 'pageId', type: 'text', label: 'Page ID', placeholder: 'e.g., 1234567890' },
+          { name: 'video', type: 'file', label: 'Video File' },
+          { name: 'description', type: 'textarea', label: 'Description', placeholder: 'My awesome video!' },
+        ],
+      },
+      'Post Video to Group': {
+        id: 'meta-post-video-group',
+        label: 'Post Video to Group',
+        platform: 'Meta',
+        endpoint: '/{group-id}/videos',
+        method: 'POST',
+        description: "Simulates uploading a video to a connected Facebook Group. Requires 'publish_to_groups' scope.",
+        inputs: [
+          { name: 'groupId', type: 'text', label: 'Group ID', placeholder: 'e.g., 0987654321' },
+          { name: 'video', type: 'file', label: 'Video File' },
+        ],
+      },
+    },
   },
   'X (Twitter)': {
-    'Application Walkthrough': '/server/branding/connect_accounts/x/application_walkthrough.js',
-    'OAuth Flow': '/server/branding/connect_accounts/x/OAuth.js',
     'Test Scopes': {
-      'Posting a Tweet': '/server/branding/connect_accounts/x/Test_scopes/Test_scopes_for_posting_tweet.js',
-    }
+      'Post a Tweet': {
+        id: 'x-post-tweet',
+        label: 'Post a Tweet',
+        platform: 'X (Twitter)',
+        endpoint: '/2/tweets',
+        method: 'POST',
+        description: "Simulates posting a new tweet to the connected account. Requires 'tweet.write' scope.",
+        inputs: [
+          { name: 'text', type: 'textarea', label: 'Tweet Content', placeholder: 'What\'s happening?' },
+        ],
+      },
+    },
   },
   'LinkedIn': {
-    'Application Walkthrough': '/server/branding/connect_accounts/linkedin/application_walkthrough.js',
-    'OAuth Flow': '/server/branding/connect_accounts/linkedin/OAuth.js',
     'Test Scopes': {
-      'Posting to Profile': '/server/branding/connect_accounts/linkedin/Test_scopes/Test_scopes_for_posting_to_profile.js',
-    }
+      'Post to Profile': {
+        id: 'linkedin-post-profile',
+        label: 'Post to Profile',
+        platform: 'LinkedIn',
+        endpoint: '/v2/ugcPosts',
+        method: 'POST',
+        description: "Simulates creating a User Generated Content (UGC) post on the connected user's profile. Requires 'w_member_social' scope.",
+        inputs: [
+          { name: 'text', type: 'textarea', label: 'Post Content', placeholder: 'Share an update...' },
+        ],
+      },
+    },
   },
   'TikTok': {
-    'Application Walkthrough': '/server/branding/connect_accounts/tiktok/application_walkthrough.js',
-    'OAuth Flow': '/server/branding/connect_accounts/tiktok/OAuth.js',
     'Test Scopes': {
-      'Fetching User Info': '/server/branding/connect_accounts/tiktok/Test_scopes/Test_scopes_for_user_info.js',
-    }
+      'Fetch User Info': {
+        id: 'tiktok-get-user',
+        label: 'Fetch User Info',
+        platform: 'TikTok',
+        endpoint: '/v2/user/info/',
+        method: 'GET',
+        description: "Simulates fetching basic profile information for the connected user. Requires 'user.info.basic' scope.",
+        inputs: [],
+      },
+    },
   },
 };
 
-const DocumentationViewer: React.FC<{ docPath: string }> = ({ docPath }) => {
-    const [content, setContent] = useState<string>('Loading...');
-    const [error, setError] = useState<string | null>(null);
+const ApiActionTester: React.FC<{
+  action: ApiAction;
+  isConnected: boolean;
+  onClose: () => void;
+}> = ({ action, isConnected, onClose }) => {
+    const [isLoading, setIsLoading] = useState(false);
+    const [response, setResponse] = useState<{ status: 'success' | 'error'; data: any } | null>(null);
+    const [formData, setFormData] = useState<Record<string, any>>({});
+    
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value, type } = e.target;
+        if (type === 'file') {
+            const files = (e.target as HTMLInputElement).files;
+            setFormData(prev => ({...prev, [name]: files ? files[0] : null}));
+        } else {
+            setFormData(prev => ({...prev, [name]: value}));
+        }
+    };
 
-    useEffect(() => {
-        let isMounted = true;
-        setContent('Loading...');
-        setError(null);
+    const handleExecute = async () => {
+        setIsLoading(true);
+        setResponse(null);
+        await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
 
-        const loadContent = async () => {
-            try {
-                const module = await import(/* @vite-ignore */ docPath);
-                if (isMounted) {
-                    setContent(module.content);
-                }
-            } catch (e) {
-                console.error(`Failed to load doc: ${docPath}`, e);
-                if (isMounted) {
-                    setError('Could not load documentation file. Make sure it exists and is a valid module.');
-                }
+        const isSuccess = Math.random() > 0.2; // 80% success rate
+        if (isSuccess) {
+            let successData: any = { status: 'OK', timestamp: new Date().toISOString() };
+             switch (action.id) {
+                case 'x-post-tweet':
+                    successData = { data: { id: `17${Math.floor(Math.random() * 9E16)}`, text: formData.text } }; break;
+                case 'meta-post-video-page':
+                    successData = { id: `${formData.pageId}_10${Math.floor(Math.random() * 9E14)}`, post_id: `${formData.pageId}_10${Math.floor(Math.random() * 9E14)}` }; break;
+                case 'tiktok-get-user':
+                     successData = { data: { user: { open_id: 'a1b2c3d4...', display_name: 'Test User', avatar_url: 'https://example.com/avatar.png'}}, error: { code: 'ok', message: '', log_id: '...'} }; break;
             }
-        };
-
-        loadContent();
-
-        return () => {
-            isMounted = false;
-        };
-    }, [docPath]);
+            setResponse({ status: 'success', data: successData });
+        } else {
+            setResponse({ status: 'error', data: { error: { message: 'Invalid credentials or permissions.', type: 'OAuthException', code: 190, fbtrace_id: `A${Math.random().toString(36).substring(2, 12)}` }} });
+        }
+        setIsLoading(false);
+    };
 
     return (
-        <div className="p-4 bg-gray-950/50 rounded-lg border border-gray-700/50 h-full max-h-[40rem] overflow-y-auto font-mono text-sm text-gray-300">
-            {error ? <p className="text-red-400">{error}</p> : <pre className="whitespace-pre-wrap">{content}</pre>}
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in" aria-modal="true" role="dialog">
+            <div className="bg-gray-800 p-6 rounded-lg shadow-xl border border-gray-700 w-full max-w-2xl max-h-[90vh] flex flex-col">
+                 <header className="flex items-center justify-between pb-4 border-b border-gray-700/50 mb-4">
+                    <h3 className="text-lg font-semibold text-white flex items-center gap-3">
+                        <Icon name={action.method === 'GET' ? 'eye' : 'rocket'} className="w-5 h-5 text-brand-400" />
+                        Test Action: {action.label}
+                    </h3>
+                    <button onClick={onClose} className="p-1.5 text-gray-500 hover:text-white rounded-full hover:bg-gray-700 transition-colors">
+                        <Icon name="x" className="w-5 h-5" />
+                    </button>
+                </header>
+                <div className="flex-grow overflow-y-auto pr-2 -mr-2 space-y-4">
+                    <p className="text-sm text-gray-400">{action.description}</p>
+
+                    {!isConnected && (
+                         <div className="p-3 bg-yellow-900/50 text-yellow-300 text-sm rounded-md border border-yellow-700/50 flex items-start gap-3">
+                           <Icon name="info" className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                           <div>
+                            <span className="font-semibold">Account Not Connected:</span> Please connect your {action.platform} account in the "Connected Accounts" section before running this action.
+                           </div>
+                        </div>
+                    )}
+                    
+                    <div className="space-y-4">
+                        {action.inputs.map(input => (
+                            <div key={input.name}>
+                                <label htmlFor={input.name} className="block text-sm font-medium text-gray-300 mb-1">{input.label}</label>
+                                {input.type === 'textarea' ? (
+                                    <textarea id={input.name} name={input.name} rows={3} onChange={handleInputChange} disabled={!isConnected} className="w-full p-2 bg-gray-900/50 border border-gray-600 rounded-md focus:ring-2 focus:ring-brand-500 disabled:opacity-50" placeholder={input.placeholder}></textarea>
+                                ) : input.type === 'file' ? (
+                                    <input type="file" id={input.name} name={input.name} onChange={handleInputChange} disabled={!isConnected} className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-600/50 file:text-brand-300 hover:file:bg-brand-600/70 disabled:opacity-50" />
+                                ) : (
+                                    <input type="text" id={input.name} name={input.name} onChange={handleInputChange} disabled={!isConnected} className="w-full p-2 bg-gray-900/50 border border-gray-600 rounded-md focus:ring-2 focus:ring-brand-500 disabled:opacity-50" placeholder={input.placeholder} />
+                                )}
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="p-3 bg-gray-900/50 rounded-md font-mono text-sm">
+                        <span className={`font-bold ${action.method === 'POST' ? 'text-yellow-400' : 'text-green-400'}`}>{action.method}</span>
+                        <span className="text-gray-400"> {action.endpoint}</span>
+                    </div>
+
+                    {response && (
+                        <div>
+                             <h4 className={`text-sm font-semibold mb-2 ${response.status === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+                                {response.status === 'success' ? 'Success Response' : 'Error Response'}
+                             </h4>
+                             <pre className="p-3 bg-gray-900/50 rounded-md text-xs text-gray-300 max-h-48 overflow-auto whitespace-pre-wrap break-all">
+                                {JSON.stringify(response.data, null, 2)}
+                             </pre>
+                        </div>
+                    )}
+                </div>
+                <footer className="pt-4 mt-auto">
+                    <button 
+                        onClick={handleExecute} 
+                        disabled={!isConnected || isLoading}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 rounded-lg transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed"
+                    >
+                         {isLoading ? <Icon name="loader" className="w-5 h-5 animate-spin" /> : <Icon name="rocket" className="w-5 h-5" />}
+                         <span>{isLoading ? 'Executing...' : 'Execute Action'}</span>
+                    </button>
+                </footer>
+            </div>
         </div>
     );
 };
 
-const DocTree: React.FC<{
+
+const ActionTree: React.FC<{
     data: any;
-    onSelect: (path: string) => void;
-    activeDoc: string | null;
+    onSelect: (action: ApiAction) => void;
     level?: number;
-}> = ({ data, onSelect, activeDoc, level = 0 }) => {
+}> = ({ data, onSelect, level = 0 }) => {
     return (
-        <ul className={level > 0 ? 'pl-4' : ''}>
+        <ul className={level > 0 ? 'pl-4 border-l border-gray-700/50' : ''}>
             {Object.entries(data).map(([key, value]) => (
                 <li key={key} className="my-1">
-                    {typeof value === 'string' ? (
+                    {value && typeof value === 'object' && (value as ApiAction).id ? (
                         <button
-                            onClick={() => onSelect(value as string)}
-                            className={`w-full text-left text-sm px-2 py-1.5 rounded-md transition-colors ${
-                                activeDoc === value
-                                    ? 'bg-brand-500/20 text-brand-300 font-semibold'
-                                    : 'text-gray-400 hover:bg-gray-700/50 hover:text-white'
-                            }`}
+                            onClick={() => onSelect(value as ApiAction)}
+                            className="w-full text-left text-sm px-2 py-1.5 rounded-md transition-colors text-gray-300 hover:bg-brand-500/10 hover:text-brand-300"
                         >
-                            {key}
+                           - {key}
                         </button>
                     ) : (
-                        <div>
-                            <span className={`font-semibold text-gray-200 text-sm ${level > 0 ? 'pt-2 block' : ''}`}>{key}</span>
-                            <DocTree data={value} onSelect={onSelect} activeDoc={activeDoc} level={level + 1} />
+                        <div className="pt-2">
+                            <span className={`font-semibold text-gray-200 text-sm`}>{key}</span>
+                            <ActionTree data={value} onSelect={onSelect} level={level + 1} />
                         </div>
                     )}
                 </li>
@@ -687,7 +821,7 @@ const BrandingContent: React.FC = () => {
     ];
 
     const [connectionStatus, setConnectionStatus] = useState<{[key: string]: 'disconnected' | 'authenticating' | 'connected'}>({});
-    const [activeDoc, setActiveDoc] = useState<string | null>(null);
+    const [activeAction, setActiveAction] = useState<ApiAction | null>(null);
 
     const handleConnect = (accountRoute: string) => {
         const authUrl = `http://localhost:3001/auth/${accountRoute}`;
@@ -743,6 +877,13 @@ const BrandingContent: React.FC = () => {
 
     return (
         <div className="p-4 space-y-8">
+            {activeAction && (
+                <ApiActionTester 
+                    action={activeAction}
+                    isConnected={(connectionStatus[activeAction.platform] || 'disconnected') === 'connected'}
+                    onClose={() => setActiveAction(null)}
+                />
+            )}
             {/* Brand Assets Section */}
             <div>
                 <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 px-1">Brand Assets</h3>
@@ -839,23 +980,11 @@ const BrandingContent: React.FC = () => {
                     })}
                  </div>
             </div>
-            {/* Developer Documentation Section */}
+            {/* API Action Center Section */}
             <div>
-                 <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 px-1">Developer Documentation</h3>
+                 <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 px-1">API Action Center</h3>
                  <div className="p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                    <div className="grid grid-cols-3 gap-6">
-                        <div className="col-span-1">
-                           <h4 className="text-md font-semibold text-gray-200 mb-2">API Guides</h4>
-                           <DocTree data={docStructure} onSelect={setActiveDoc} activeDoc={activeDoc} />
-                        </div>
-                         <div className="col-span-2">
-                            {activeDoc ? <DocumentationViewer docPath={activeDoc} /> : (
-                                <div className="h-full flex items-center justify-center text-center text-gray-500 bg-gray-900/50 rounded-md p-4 border border-dashed border-gray-700">
-                                    <p>Select a document to view its contents.</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    <ActionTree data={apiActionStructure} onSelect={setActiveAction} />
                  </div>
             </div>
         </div>
