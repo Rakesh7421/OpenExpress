@@ -17,7 +17,7 @@ def option_2():
     print("Starting server and frontend...")
 
     # Run server first
-    server_cmd = "python server/server.py"
+    server_cmd = "python server/server_py.txt"
     print(f"Running: {server_cmd}")
     server_process = subprocess.Popen(server_cmd, shell=True)
 
