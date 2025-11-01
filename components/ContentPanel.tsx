@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppVersion } from '../types';
 import { Icon } from './common/Icon';
 import { DEVELOPER_SIDEBAR_ITEMS, CLIENT_SIDEBAR_ITEMS } from '../constants';
@@ -10,6 +10,69 @@ interface ContentPanelProps {
   pushedFeatures: Set<string>;
   onTogglePushFeature: (featureId: string) => void;
 }
+
+// Authentication Modal Component (reusable for integrations and branding)
+const AuthModal: React.FC<{
+  platform: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}> = ({ platform, onClose, onSuccess }) => {
+    const [authStep, setAuthStep] = useState<'redirecting' | 'success'>('redirecting');
+    const [countdown, setCountdown] = useState(3);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setAuthStep('success');
+        }, 2500); // Simulate API call and redirect
+        return () => clearTimeout(timer);
+    }, []);
+
+    useEffect(() => {
+        if (authStep === 'success') {
+            const countdownTimer = setInterval(() => {
+                setCountdown(prev => {
+                    if (prev <= 1) {
+                        clearInterval(countdownTimer);
+                        onSuccess();
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+            return () => clearInterval(countdownTimer);
+        }
+    }, [authStep, onSuccess]);
+
+
+    return (
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in">
+        <div className="bg-gray-800 p-6 rounded-lg shadow-xl border border-gray-700 w-96 relative">
+          <h3 className="text-lg font-semibold text-white mb-6 text-center">Authenticating with {platform}</h3>
+          
+          {authStep === 'redirecting' && (
+            <div className="flex flex-col items-center gap-4 text-gray-300">
+              <Icon name="loader" className="w-8 h-8 animate-spin text-brand-400" />
+              <p className="text-sm">Simulating redirection for authorization...</p>
+            </div>
+          )}
+          
+          {authStep === 'success' && (
+            <div className="text-center">
+              <Icon name="check-circle" className="w-12 h-12 text-green-500 mx-auto mb-3" />
+              <p className="text-gray-200 font-semibold">Authentication Successful!</p>
+              <p className="text-sm text-gray-400 mt-2">
+                You have successfully connected your {platform} account. Closing in {countdown}s.
+              </p>
+            </div>
+          )}
+
+          <button onClick={onClose} className="absolute top-3 right-3 p-1.5 text-gray-500 hover:text-white rounded-full hover:bg-gray-700 transition-colors">
+            <Icon name="x" className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
+};
 
 const ServerContent: React.FC = () => {
     const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
@@ -278,26 +341,42 @@ const IntegrationsContent: React.FC = () => {
         { name: 'Dropbox', icon: 'dropbox', description: 'Sync your assets' },
     ];
     
-    const [connectionStatus, setConnectionStatus] = useState<{[key: string]: 'disconnected' | 'connecting' | 'connected'}>({});
+    const [connectionStatus, setConnectionStatus] = useState<{[key: string]: 'disconnected' | 'authenticating' | 'connected'}>({});
+    const [authIntegration, setAuthIntegration] = useState<string | null>(null);
 
     const handleConnect = (name: string) => {
-        setConnectionStatus(prev => ({ ...prev, [name]: 'connecting' }));
-        setTimeout(() => {
-            setConnectionStatus(prev => ({ ...prev, [name]: 'connected' }));
-        }, 1500);
+        setConnectionStatus(prev => ({ ...prev, [name]: 'authenticating' }));
+        setAuthIntegration(name);
     };
 
     const handleDisconnect = (name: string) => {
         setConnectionStatus(prev => ({ ...prev, [name]: 'disconnected' }));
     };
 
+    const handleAuthSuccess = (name: string) => {
+        setConnectionStatus(prev => ({...prev, [name]: 'connected' }));
+        setAuthIntegration(null);
+    };
+    
+    const handleAuthCancel = (name: string) => {
+        setConnectionStatus(prev => ({...prev, [name]: 'disconnected' }));
+        setAuthIntegration(null);
+    };
+
     return (
         <div className="p-4 space-y-4">
+             {authIntegration && (
+                <AuthModal 
+                    platform={authIntegration}
+                    onClose={() => handleAuthCancel(authIntegration)}
+                    onSuccess={() => handleAuthSuccess(authIntegration)}
+                />
+            )}
             <input type="search" placeholder="Search integrations..." className="w-full p-2 bg-gray-800 border border-gray-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition" />
             <div className="grid grid-cols-2 gap-2">
                 {integrations.map(int => {
                     const status = connectionStatus[int.name] || 'disconnected';
-                    const isConnecting = status === 'connecting';
+                    const isAuthenticating = status === 'authenticating';
                     const isConnected = status === 'connected';
                     return (
                         <div key={int.name} className="bg-gray-800/50 p-3 rounded-lg border border-gray-700/50 space-y-2 flex flex-col items-center text-center hover:bg-gray-800 transition-colors">
@@ -306,15 +385,15 @@ const IntegrationsContent: React.FC = () => {
                             <p className="text-xs text-gray-400 flex-grow">{int.description}</p>
                             <button 
                                 onClick={() => isConnected ? handleDisconnect(int.name) : handleConnect(int.name)}
-                                disabled={isConnecting}
+                                disabled={isAuthenticating}
                                 className={`w-full mt-2 text-xs font-semibold rounded-md py-1.5 transition-colors flex items-center justify-center gap-1 disabled:cursor-not-allowed ${
                                     isConnected
                                     ? 'bg-green-900/60 hover:bg-green-800/70 text-green-300'
                                     : 'bg-gray-700 hover:bg-gray-600 text-white disabled:bg-gray-600'
                                 }`}
                             >
-                               {isConnecting ? <Icon name="loader" className="w-4 h-4 animate-spin"/> : null}
-                               <span>{isConnecting ? 'Connecting...' : isConnected ? 'Disconnect' : 'Connect'}</span>
+                               {isAuthenticating ? <Icon name="loader" className="w-4 h-4 animate-spin"/> : null}
+                               <span>{isAuthenticating ? 'Connecting...' : isConnected ? 'Disconnect' : 'Connect'}</span>
                             </button>
                         </div>
                     )
@@ -344,22 +423,38 @@ const BrandingContent: React.FC = () => {
         { name: 'Body', family: 'Roboto' },
     ];
 
-    const [connectionStatus, setConnectionStatus] = useState<{[key: string]: 'disconnected' | 'connecting' | 'connected'}>({});
+    const [connectionStatus, setConnectionStatus] = useState<{[key: string]: 'disconnected' | 'authenticating' | 'connected'}>({});
+    const [authAccount, setAuthAccount] = useState<string | null>(null);
 
     const handleConnect = (accountName: string) => {
-        setConnectionStatus(prev => ({ ...prev, [accountName]: 'connecting' }));
-        setTimeout(() => {
-            setConnectionStatus(prev => ({ ...prev, [accountName]: 'connected' }));
-        }, 1500);
+        setConnectionStatus(prev => ({ ...prev, [accountName]: 'authenticating' }));
+        setAuthAccount(accountName);
     };
 
     const handleDisconnect = (accountName: string) => {
         setConnectionStatus(prev => ({ ...prev, [accountName]: 'disconnected' }));
     };
 
+    const handleAuthSuccess = (name: string) => {
+        setConnectionStatus(prev => ({...prev, [name]: 'connected' }));
+        setAuthAccount(null);
+    };
+
+    const handleAuthCancel = (name: string) => {
+        setConnectionStatus(prev => ({...prev, [name]: 'disconnected' }));
+        setAuthAccount(null);
+    };
 
     return (
         <div className="p-4 space-y-8">
+            {authAccount && (
+                <AuthModal 
+                    platform={authAccount}
+                    onClose={() => handleAuthCancel(authAccount)}
+                    onSuccess={() => handleAuthSuccess(authAccount)}
+                />
+            )}
+
             {/* Brand Assets Section */}
             <div>
                 <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 px-1">Brand Assets</h3>
@@ -418,7 +513,7 @@ const BrandingContent: React.FC = () => {
                  <div className="space-y-3">
                     {socialAccounts.map(account => {
                         const status = connectionStatus[account.name] || 'disconnected';
-                        const isConnecting = status === 'connecting';
+                        const isAuthenticating = status === 'authenticating';
                         const isConnected = status === 'connected';
                         return (
                             <div key={account.name} className="p-3 bg-gray-800/50 rounded-lg border border-gray-700/50 hover:bg-gray-800 transition-colors">
@@ -446,11 +541,11 @@ const BrandingContent: React.FC = () => {
                                     ) : (
                                         <button
                                             onClick={() => handleConnect(account.name)}
-                                            disabled={isConnecting}
+                                            disabled={isAuthenticating}
                                             className="w-full flex items-center justify-center gap-2 text-xs font-semibold rounded-md py-1.5 px-4 transition-colors disabled:cursor-not-allowed bg-gray-700 hover:bg-gray-600 text-white disabled:bg-gray-600 disabled:text-gray-400"
                                         >
-                                            {isConnecting && <Icon name="loader" className="w-4 h-4 animate-spin" />}
-                                            <span>{isConnecting ? 'Connecting...' : 'Connect'}</span>
+                                            {isAuthenticating && <Icon name="loader" className="w-4 h-4 animate-spin" />}
+                                            <span>{isAuthenticating ? 'Connecting...' : 'Connect'}</span>
                                         </button>
                                     )}
                                 </div>
