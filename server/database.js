@@ -1,8 +1,8 @@
 import { promises as fs } from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 const dbPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'db.json');
-import { fileURLToPath } from 'url';
 
 /**
  * Reads the content of the database file.
