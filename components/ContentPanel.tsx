@@ -621,6 +621,13 @@ const ChecklistContent: React.FC = () => {
         throw new Error("Navigator.onLine API not available.");
     };
 
+    const testFileSystemAccess = async () => {
+        if ('showOpenFilePicker' in window) {
+          return "File System Access API is supported.";
+        }
+        throw new Error("File System Access API not supported.");
+    };
+
     const testTermuxApiAccess = async () => {
         throw new Error("Direct Termux API access from browser is not possible due to security restrictions. Use a local WebSocket server for bridging.");
     };
@@ -645,6 +652,7 @@ const ChecklistContent: React.FC = () => {
         { id: 'termux-touch', label: 'Touch Event Support', testFn: testTouchEvents },
         { id: 'termux-pwa', label: 'PWA Manifest Check', testFn: testPwaManifest },
         { id: 'termux-connectivity', label: 'Network Status API', testFn: testNetworkStatus },
+        { id: 'termux-fs', label: 'File System Access API', testFn: testFileSystemAccess },
         { id: 'termux-api', label: 'Direct Termux API Access', testFn: testTermuxApiAccess },
     ];
     

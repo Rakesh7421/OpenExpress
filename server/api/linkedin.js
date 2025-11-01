@@ -5,7 +5,7 @@
  * @param {import('express').Request} req - The Express request object.
  * @param {import('express').Response} res - The Express response object.
  */
-async function postToProfile(req, res) {
+export async function postToProfile(req, res) {
   console.log('Authenticated user:', req.user);
   console.log('Request to post to LinkedIn profile with body:', req.body);
   
@@ -14,7 +14,3 @@ async function postToProfile(req, res) {
     note: "This is a simulated success response. No actual post was created."
   });
 }
-
-module.exports = {
-  postToProfile,
-};

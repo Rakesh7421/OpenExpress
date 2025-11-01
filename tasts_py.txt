@@ -3,6 +3,7 @@ import subprocess
 import platform
 import threading
 import sys
+import json
 from typing import List, Optional
 
 # --- Configuration ---
@@ -14,6 +15,8 @@ PYTHON_SERVER_SCRIPT_TXT = os.path.join(SERVER_DIR, 'server_py.txt')
 PYTHON_SERVER_SCRIPT = os.path.join(SERVER_DIR, 'server.py')
 NODE_AUTH_SERVER_SCRIPT_TXT = os.path.join(SERVER_DIR, 'auth_node.txt')
 NODE_AUTH_SERVER_SCRIPT = os.path.join(SERVER_DIR, 'auth.js')
+PACKAGE_JSON_TXT = os.path.join(SERVER_DIR, 'package_json.txt')
+PACKAGE_JSON = os.path.join(ROOT_DIR, 'package.json')
 
 # --- Helper Functions ---
 
@@ -23,25 +26,45 @@ def print_header(title: str):
     print(f"🚀 {title}")
     print("=" * 50)
 
-def check_and_rename_script(txt_path: str, final_path: str, script_name: str):
-    """Checks if a script needs renaming from .txt and guides the user."""
-    if not os.path.exists(final_path) and os.path.exists(txt_path):
-        print(f"Warning: '{os.path.basename(final_path)}' not found.")
+def prepare_file(txt_path: str, final_path: str, name: str, is_move: bool = False):
+    """Checks for a file and automatically renames/moves it from a .txt source if necessary."""
+    if os.path.exists(final_path):
+        return True
+
+    if os.path.exists(txt_path):
+        action = "moved" if is_move else "renamed"
+        print(f"Info: '{os.path.basename(final_path)}' not found, but source '{os.path.relpath(txt_path, ROOT_DIR)}' exists.")
         try:
-            rename = input(f"Do you want to rename '{os.path.basename(txt_path)}' to '{os.path.basename(final_path)}'? (y/n): ").lower()
-            if rename == 'y':
-                os.rename(txt_path, final_path)
-                print(f"Successfully renamed to '{os.path.basename(final_path)}'.")
-                return True
-            else:
-                print(f"Skipping rename. {script_name} cannot be started.")
-                return False
+            os.rename(txt_path, final_path) # os.rename can move files across same filesystem
+            print(f"Automatically {action} source to '{os.path.relpath(final_path, ROOT_DIR)}'.")
+            return True
         except Exception as e:
-            print(f"Error renaming file: {e}")
+            print(f"Error: Could not {action} file for {name}. Reason: {e}")
             return False
-    elif not os.path.exists(final_path):
-        print(f"Error: Required script '{os.path.basename(final_path)}' not found in '{os.path.dirname(final_path)}'.")
+    else:
+        print(f"Error: Required file for {name} not found.")
+        print(f"Neither '{os.path.relpath(final_path, ROOT_DIR)}' nor '{os.path.relpath(txt_path, ROOT_DIR)}' could be found.")
         return False
+
+def update_package_json_for_esm():
+    """Ensures package.json has 'type: module' for ES module support."""
+    if not os.path.exists(PACKAGE_JSON):
+        return False # Should have been handled by prepare_file
+
+    try:
+        with open(PACKAGE_JSON, 'r+') as f:
+            data = json.load(f)
+            if data.get('type') != 'module':
+                print("Info: 'package.json' is missing '\"type\": \"module\"', which is required for the Node.js server.")
+                data['type'] = 'module'
+                f.seek(0)
+                json.dump(data, f, indent=2)
+                f.truncate()
+                print("Automatically added '\"type\": \"module\"' to package.json.")
+    except (json.JSONDecodeError, IOError) as e:
+        print(f"Error reading or updating package.json: {e}")
+        return False
+    
     return True
 
 def run_command(command: List[str], working_dir: str, name: str, env: Optional[dict] = None):
@@ -100,8 +123,8 @@ def install_dependencies():
     
     # Node.js dependencies
     print("\n--- Installing Node.js dependencies ---")
-    if not os.path.exists(os.path.join(FRONTEND_DIR, 'package.json')):
-        print("[npm-ERR] package.json not found in the root directory. Skipping npm install.")
+    if not prepare_file(PACKAGE_JSON_TXT, PACKAGE_JSON, "package.json", is_move=True):
+        print("[npm-ERR] Could not prepare package.json. Skipping npm install.")
         return
     
     npm_command = ['npm', 'install']
@@ -110,7 +133,7 @@ def install_dependencies():
 def run_python_server():
     """Runs the Python/Flask API server."""
     print_header("Running Python Flask Server")
-    if not check_and_rename_script(PYTHON_SERVER_SCRIPT_TXT, PYTHON_SERVER_SCRIPT, "Python server"):
+    if not prepare_file(PYTHON_SERVER_SCRIPT_TXT, PYTHON_SERVER_SCRIPT, "Python server"):
         return
         
     env = os.environ.copy()
@@ -124,7 +147,10 @@ def run_python_server():
 def run_node_auth_server():
     """Runs the Node.js/Express authentication server."""
     print_header("Running Node.js Auth Server")
-    if not check_and_rename_script(NODE_AUTH_SERVER_SCRIPT_TXT, NODE_AUTH_SERVER_SCRIPT, "Node.js server"):
+    if not prepare_file(NODE_AUTH_SERVER_SCRIPT_TXT, NODE_AUTH_SERVER_SCRIPT, "Node.js auth server") or \
+       not prepare_file(PACKAGE_JSON_TXT, PACKAGE_JSON, "package.json", is_move=True) or \
+       not update_package_json_for_esm():
+        print("Could not prepare files for Node.js server. Aborting.")
         return
 
     env = os.environ.copy()
@@ -136,8 +162,8 @@ def run_node_auth_server():
 def run_frontend_dev_server():
     """Runs the frontend development server (e.g., Vite)."""
     print_header("Running Frontend Dev Server")
-    if not os.path.exists(os.path.join(FRONTEND_DIR, 'package.json')):
-        print("[npm-ERR] package.json not found. Cannot start frontend server.")
+    if not os.path.exists(PACKAGE_JSON):
+        print("[Vite-ERR] package.json not found. Cannot start frontend server. Try running 'Install Dependencies' first.")
         return
         
     npm_command = ['npm', 'run', 'dev']
@@ -147,9 +173,17 @@ def run_all_services():
     """Runs all services concurrently."""
     print_header("Starting All Services")
 
-    if not check_and_rename_script(PYTHON_SERVER_SCRIPT_TXT, PYTHON_SERVER_SCRIPT, "Python server") or \
-       not check_and_rename_script(NODE_AUTH_SERVER_SCRIPT_TXT, NODE_AUTH_SERVER_SCRIPT, "Node.js server"):
-        print("One or more server scripts are missing. Aborting.")
+    # Prepare all files and configurations
+    py_ready = prepare_file(PYTHON_SERVER_SCRIPT_TXT, PYTHON_SERVER_SCRIPT, "Python server")
+    node_script_ready = prepare_file(NODE_AUTH_SERVER_SCRIPT_TXT, NODE_AUTH_SERVER_SCRIPT, "Node.js auth server")
+    pkg_json_ready = prepare_file(PACKAGE_JSON_TXT, PACKAGE_JSON, "package.json", is_move=True)
+    
+    esm_config_ready = False
+    if pkg_json_ready:
+        esm_config_ready = update_package_json_for_esm()
+
+    if not (py_ready and node_script_ready and pkg_json_ready and esm_config_ready):
+        print("\nEnvironment is not ready. Aborting start of services. Run 'Check Environment' for details.")
         return
 
     # Prepare environments
@@ -175,36 +209,53 @@ def run_all_services():
     node_thread.start()
     frontend_thread.start()
     
-    python_thread.join()
-    node_thread.join()
-    frontend_thread.join()
+    try:
+        python_thread.join()
+        node_thread.join()
+        frontend_thread.join()
+    except KeyboardInterrupt:
+        print("\nCaught KeyboardInterrupt, stopping services...")
+        # Processes are daemonic and will be terminated when the main script exits.
 
 def check_environment():
-    """Checks for necessary files and configurations."""
-    print_header("Checking Environment")
+    """Checks for necessary files and configurations, preparing them automatically."""
+    print_header("Checking and Preparing Environment")
+    
+    # Prepare files and capture success status
+    py_ok = prepare_file(PYTHON_SERVER_SCRIPT_TXT, PYTHON_SERVER_SCRIPT, "Python server")
+    node_ok = prepare_file(NODE_AUTH_SERVER_SCRIPT_TXT, NODE_AUTH_SERVER_SCRIPT, "Node.js auth server")
+    pkg_json_ok = prepare_file(PACKAGE_JSON_TXT, PACKAGE_JSON, "package.json", is_move=True)
+    
+    esm_ok = False
+    if pkg_json_ok:
+        esm_ok = update_package_json_for_esm()
+
+    # Report status based on preparation results
+    print("\n--- Status Report ---")
     checks = {
-        "Python Server Script": os.path.exists(PYTHON_SERVER_SCRIPT) or os.path.exists(PYTHON_SERVER_SCRIPT_TXT),
-        "Node Auth Script": os.path.exists(NODE_AUTH_SERVER_SCRIPT) or os.path.exists(NODE_AUTH_SERVER_SCRIPT_TXT),
+        "Python Server Script": py_ok,
+        "Node Auth Script": node_ok,
+        "package.json in root": pkg_json_ok,
+        "package.json ESM config": esm_ok,
         "Python Requirements": os.path.exists(os.path.join(SERVER_DIR, 'requirements.txt')),
-        "Node Dependencies": os.path.exists(os.path.join(FRONTEND_DIR, 'package.json')),
         "Secrets .env file": os.path.exists(os.path.join(ROOT_DIR, 'secrets', '.env')),
     }
     
     all_ok = True
     for check, result in checks.items():
-        status = "✅ OK" if result else "❌ MISSING"
+        status = "✅ OK" if result else "❌ FAILED / MISSING"
         if not result:
             all_ok = False
         print(f"- {check}: {status}")
     
     if not checks["Secrets .env file"]:
         print("\nWarning: No 'secrets/.env' file found. The servers might not work correctly without environment variables.")
-        print("Consider copying '.env.example.txt' to 'secrets/.env' and filling it out.")
+        print("Consider creating 'secrets/.env' from the '.env.example.txt' template.")
     
     if all_ok:
-        print("\nEnvironment check passed!")
+        print("\nEnvironment check and preparation successful!")
     else:
-        print("\nSome environment checks failed. Please review the missing items.")
+        print("\nSome environment checks or preparations failed. Please review the messages above.")
 
 
 def main():
@@ -233,9 +284,16 @@ def main():
             
             _, func = menu_options[choice]
             if func:
-                func()
+                try:
+                    func()
+                except KeyboardInterrupt:
+                    print("\nOperation interrupted by user.")
         else:
             print("Invalid choice. Please try again.")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nTask runner stopped. Exiting.")
+        sys.exit(0)

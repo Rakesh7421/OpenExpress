@@ -1,4 +1,4 @@
-const jwt = require('jsonwebtoken');
+import jwt from 'jsonwebtoken';
 
 /**
  * Middleware to verify a JSON Web Token (JWT).
@@ -7,7 +7,7 @@ const jwt = require('jsonwebtoken');
  * @param {import('express').Response} res - The Express response object.
  * @param {import('express').NextFunction} next - The Express next middleware function.
  */
-function verifyToken(req, res, next) {
+export function verifyToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Format: 'Bearer TOKEN'
 
@@ -24,7 +24,3 @@ function verifyToken(req, res, next) {
     next();
   });
 }
-
-module.exports = {
-  verifyToken,
-};
