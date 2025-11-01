@@ -115,8 +115,10 @@ const ChecklistContent: React.FC = () => {
             const message = await testFn();
             setTestResults(prev => ({ ...prev, [id]: { status: 'success', message } }));
             handleToggleCheck(id); // Auto-check on success
-        } catch (error: any) {
-            setTestResults(prev => ({ ...prev, [id]: { status: 'error', message: error.message || 'Test failed' } }));
+        } catch (error) {
+            // FIX: Safely access message property from 'unknown' error type.
+            const message = error instanceof Error ? error.message : 'Test failed';
+            setTestResults(prev => ({ ...prev, [id]: { status: 'error', message } }));
         }
     }, []);
 
@@ -547,10 +549,10 @@ const IntegrationsContent: React.FC = () => {
 
 const BrandingContent: React.FC = () => {
     const socialAccounts = [
-        { name: 'Meta', icon: 'meta', description: 'Facebook & Instagram', color: 'text-blue-500' },
-        { name: 'X (Twitter)', icon: 'x', description: 'Post real-time updates.', color: 'text-gray-400' },
-        { name: 'LinkedIn', icon: 'linkedin', description: 'For professional content.', color: 'text-sky-600' },
-        { name: 'TikTok', icon: 'tiktok', description: 'Create engaging short videos.', color: 'text-teal-400' },
+        { name: 'Meta', route: 'facebook', icon: 'meta', description: 'Facebook & Instagram', color: 'text-blue-500' },
+        { name: 'X (Twitter)', route: 'twitter', icon: 'x', description: 'Post real-time updates.', color: 'text-gray-400' },
+        { name: 'LinkedIn', route: 'linkedin', icon: 'linkedin', description: 'For professional content.', color: 'text-sky-600' },
+        { name: 'TikTok', route: 'tiktok', icon: 'tiktok', description: 'Create engaging short videos.', color: 'text-teal-400' },
     ];
     
     const brandColors = [
@@ -566,37 +568,61 @@ const BrandingContent: React.FC = () => {
     ];
 
     const [connectionStatus, setConnectionStatus] = useState<{[key: string]: 'disconnected' | 'authenticating' | 'connected'}>({});
-    const [authAccount, setAuthAccount] = useState<string | null>(null);
 
-    const handleConnect = (accountName: string) => {
-        setConnectionStatus(prev => ({ ...prev, [accountName]: 'authenticating' }));
-        setAuthAccount(accountName);
+    const handleConnect = (accountRoute: string) => {
+        const authUrl = `http://localhost:3001/auth/${accountRoute}`;
+        const width = 600, height = 700;
+        const left = (window.screen.width / 2) - (width / 2);
+        const top = (window.screen.height / 2) - (height / 2);
+
+        window.open(
+            authUrl,
+            'AuthPopup',
+            `width=${width},height=${height},top=${top},left=${left}`
+        );
     };
 
-    const handleDisconnect = (accountName: string) => {
+    const handleDisconnect = useCallback((accountName: string) => {
         setConnectionStatus(prev => ({ ...prev, [accountName]: 'disconnected' }));
-    };
+    }, []);
 
-    const handleAuthSuccess = (name: string) => {
-        setConnectionStatus(prev => ({...prev, [name]: 'connected' }));
-        setAuthAccount(null);
-    };
+    const handleAuthSuccess = useCallback((platform: string) => {
+        const account = socialAccounts.find(acc => acc.route === platform);
+        if (account) {
+            setConnectionStatus(prev => ({...prev, [account.name]: 'connected' }));
+        }
+    }, [socialAccounts]);
 
-    const handleAuthCancel = (name: string) => {
-        setConnectionStatus(prev => ({...prev, [name]: 'disconnected' }));
-        setAuthAccount(null);
-    };
+    const handleAuthCancel = useCallback((platform: string) => {
+        const account = socialAccounts.find(acc => acc.route === platform);
+        if (account) {
+            setConnectionStatus(prev => ({...prev, [account.name]: 'disconnected' }));
+        }
+    }, [socialAccounts]);
+
+    useEffect(() => {
+        const handleAuthMessage = (event: MessageEvent) => {
+            // IMPORTANT: In a production app, you should verify the origin of the message
+            // if (event.origin !== 'http://localhost:3001') return;
+
+            const { type, platform } = event.data;
+            if (type === 'auth-success') {
+                handleAuthSuccess(platform);
+            } else if (type === 'auth-failure') {
+                handleAuthCancel(platform);
+            }
+        };
+
+        window.addEventListener('message', handleAuthMessage);
+
+        return () => {
+            window.removeEventListener('message', handleAuthMessage);
+        };
+    }, [handleAuthSuccess, handleAuthCancel]);
+
 
     return (
         <div className="p-4 space-y-8">
-            {authAccount && (
-                <AuthModal 
-                    platform={authAccount}
-                    onClose={() => handleAuthCancel(authAccount)}
-                    onSuccess={() => handleAuthSuccess(authAccount)}
-                />
-            )}
-
             {/* Brand Assets Section */}
             <div>
                 <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 px-1">Brand Assets</h3>
@@ -655,7 +681,6 @@ const BrandingContent: React.FC = () => {
                  <div className="space-y-3">
                     {socialAccounts.map(account => {
                         const status = connectionStatus[account.name] || 'disconnected';
-                        const isAuthenticating = status === 'authenticating';
                         const isConnected = status === 'connected';
                         return (
                             <div key={account.name} className="p-3 bg-gray-800/50 rounded-lg border border-gray-700/50 hover:bg-gray-800 transition-colors">
@@ -682,12 +707,10 @@ const BrandingContent: React.FC = () => {
                                         </div>
                                     ) : (
                                         <button
-                                            onClick={() => handleConnect(account.name)}
-                                            disabled={isAuthenticating}
+                                            onClick={() => handleConnect(account.route)}
                                             className="w-full flex items-center justify-center gap-2 text-xs font-semibold rounded-md py-1.5 px-4 transition-colors disabled:cursor-not-allowed bg-gray-700 hover:bg-gray-600 text-white disabled:bg-gray-600 disabled:text-gray-400"
                                         >
-                                            {isAuthenticating && <Icon name="loader" className="w-4 h-4 animate-spin" />}
-                                            <span>{isAuthenticating ? 'Connecting...' : 'Connect'}</span>
+                                            <span>{'Connect'}</span>
                                         </button>
                                     )}
                                 </div>
