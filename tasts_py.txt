@@ -7,7 +7,7 @@ os.system("d:/installer_files/.venv/Scripts/activate.bat")
 def option_1():
     """Run the Python server."""
     print("Running server/server.py...")
-    os.system("python server/server.py")
+    os.system("python server/server_py.txt")
 
 import os
 import subprocess
