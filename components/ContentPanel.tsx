@@ -614,6 +614,13 @@ const ChecklistContent: React.FC = () => {
       throw new Error("App is not configured as a PWA (no manifest found).");
     };
 
+    const testNetworkStatus = async () => {
+        if ('onLine' in navigator) {
+            return `API supported. Status: ${navigator.onLine ? 'Online' : 'Offline'}.`;
+        }
+        throw new Error("Navigator.onLine API not available.");
+    };
+
     const testTermuxApiAccess = async () => {
         throw new Error("Direct Termux API access from browser is not possible due to security restrictions. Use a local WebSocket server for bridging.");
     };
@@ -637,6 +644,7 @@ const ChecklistContent: React.FC = () => {
         { id: 'termux-offline', label: 'Offline Functionality', testFn: testOfflineSupport },
         { id: 'termux-touch', label: 'Touch Event Support', testFn: testTouchEvents },
         { id: 'termux-pwa', label: 'PWA Manifest Check', testFn: testPwaManifest },
+        { id: 'termux-connectivity', label: 'Network Status API', testFn: testNetworkStatus },
         { id: 'termux-api', label: 'Direct Termux API Access', testFn: testTermuxApiAccess },
     ];
     
@@ -795,6 +803,8 @@ const ServerContent: React.FC = () => {
         } catch (error) {
             console.error('Connection attempt failed:', error);
             setStatus('disconnected');
+            // FIX: Safely handle the error object, which is of type `unknown`.
+            // Check if it's an instance of Error to access its `message` property.
             const message = error instanceof Error ? error.message : 'Connection failed. Is the server running?';
             setTestResult({ status: 'error', message });
         } finally {
@@ -813,6 +823,8 @@ const ServerContent: React.FC = () => {
             setTestResult({ status: 'success', message: data.message || 'Successfully connected!' });
         } catch (error) {
             console.error('Connection test failed:', error);
+            // FIX: Safely handle the error object, which is of type `unknown`.
+            // Check if it's an instance of Error to access its `message` property.
             const message = error instanceof Error ? error.message : 'Connection failed. Is the server running?';
             setTestResult({ status: 'error', message });
         } finally {
