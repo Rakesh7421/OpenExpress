@@ -1,0 +1,145 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# OpenExpress Simple Flask Server\n\n",
+    "This notebook contains a simple Python Flask server to act as a backend for the OpenExpress application. It provides a status endpoint and a basic API for saving design data.\n\n",
+    "**Instructions:**\n",
+    "1. Run the cells in order.\n",
+    "2. The final cell will start the web server. It will run continuously until you interrupt the kernel.\n",
+    "3. Once the server is running, you can test the connection from the OpenExpress UI."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 1. Install Dependencies\n\n",
+    "Run the following cell to install the necessary Python libraries: `Flask` for the web server and `Flask-Cors` to handle cross-origin requests from the frontend."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "%pip install Flask>=2.0 Flask-Cors>=3.0"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 2. Server Code\n\n",
+    "This cell contains the full code for the Flask application. It defines three routes:\n\n",
+    "- `/`: A root endpoint to check if the server is alive.\n",
+    "- `/api/save-design`: A `POST` endpoint that simulates saving design data.\n",
+    "- `/api/image-upload`: A `POST` endpoint that simulates uploading and saving an image file."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import os\n",
+    "import time\n",
+    "from flask import Flask, request, jsonify\n",
+    "from flask_cors import CORS\n\n",
+    "# A functional Flask server for the OpenExpress app.\n",
+    "app = Flask(__name__)\n\n",
+    "# Middleware\n",
+    "# Enable Cross-Origin Resource Sharing (CORS)\n",
+    "CORS(app)\n\n",
+    "# Routes\n",
+    "@app.route('/')\n",
+    "def index():\n",
+    "  \"\"\"Root endpoint to check if the server is running.\"\"\"\n",
+    "  return jsonify(message='OpenExpress Python server is running!')\n\n",
+    "@app.route('/api/save-design', methods=['POST'])\n",
+    "def save_design():\n",
+    "  \"\"\"Endpoint to receive and process design data from the frontend.\"\"\"\n",
+    "  print('Received design data to save:', request.json)\n",
+    "  \n",
+    "  if not request.json or 'title' not in request.json:\n",
+    "    return jsonify(error='Design title is required.'), 400\n",
+    "  \n",
+    "  # In a real app, you would save this data to a database.\n",
+    "  return jsonify(\n",
+    "    message='Design saved successfully!', \n",
+    "    designId=f'dsn_{int(time.time())}',\n",
+    "    dataReceived=request.json \n",
+    "  ), 201\n\n",
+    "@app.route('/api/image-upload', methods=['POST'])\n",
+    "def upload_image():\n",
+    "  \"\"\"Endpoint to handle image uploads.\"\"\"\n",
+    "  if 'image_file' not in request.files:\n",
+    "    return jsonify(error='No image file provided.'), 400\n",
+    "  \n",
+    "  file = request.files['image_file']\n",
+    "  \n",
+    "  if file.filename == '':\n",
+    "    return jsonify(error='No selected file.'), 400\n\n",
+    "  if file:\n",
+    "    # In a real app, you would save the file to a secure location\n",
+    "    # using werkzeug.utils.secure_filename and then store its path.\n",
+    "    print(f\"Received image file: {file.filename}\")\n",
+    "    print(f\"Simulating save for {file.filename}...\")\n",
+    "    \n",
+    "    # Return a success response with a placeholder URL\n",
+    "    return jsonify(\n",
+    "        message='Image uploaded successfully!',\n",
+    "        imageUrl=f'https://fake-cdn.com/images/{file.filename}'\n",
+    "    ), 200"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 3. Start the Server\n\n",
+    "The final step is to run the server. The cell below will start the Flask application on port `8080` by default.\n\n",
+    "**Note:** This cell will run indefinitely. To stop the server, you must interrupt or restart the Jupyter kernel."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "if __name__ == '__main__':\n",
+    "    # Get port from environment variable or default to 8080\n",
+    "    port = int(os.environ.get('PORT', 8080))\n",
+    "    # Use host='0.0.0.0' to make it accessible from the network\n",
+    "    # use_reloader=False is recommended for notebook environments\n",
+    "    app.run(host='0.0.0.0', port=port, debug=True, use_reloader=False)"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.9.7"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 4
+}
