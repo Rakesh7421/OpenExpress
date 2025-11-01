@@ -13,7 +13,7 @@ export default function App(): React.ReactElement {
 
   const handleVersionChange = useCallback((newVersion: AppVersion) => {
     setVersion(newVersion);
-    const developerOnlyItems = ['ai', 'branding', 'collaboration', 'version-control', 'integrations', 'push', 'server'];
+    const developerOnlyItems = ['ai', 'branding', 'collaboration', 'version-control', 'integrations', 'push', 'server', 'checklist'];
     if (newVersion === AppVersion.CLIENT && activeSidebarItem && developerOnlyItems.includes(activeSidebarItem)) {
         setActiveSidebarItem(null);
     }

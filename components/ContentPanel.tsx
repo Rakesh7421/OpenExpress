@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AppVersion } from '../types';
 import { Icon } from './common/Icon';
 import { DEVELOPER_SIDEBAR_ITEMS, CLIENT_SIDEBAR_ITEMS } from '../constants';
@@ -73,6 +73,148 @@ const AuthModal: React.FC<{
       </div>
     );
 };
+
+const ChecklistContent: React.FC = () => {
+    const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
+    const [testResults, setTestResults] = useState<{ [key: string]: { status: 'idle' | 'testing' | 'success' | 'error'; message?: string } }>({});
+
+    useEffect(() => {
+        try {
+            const storedState = localStorage.getItem('checklistState');
+            if (storedState) {
+                setCheckedItems(new Set(JSON.parse(storedState)));
+            }
+        } catch (error) {
+            console.error("Failed to load checklist state from localStorage:", error);
+        }
+    }, []);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('checklistState', JSON.stringify(Array.from(checkedItems)));
+        } catch (error) {
+            console.error("Failed to save checklist state to localStorage:", error);
+        }
+    }, [checkedItems]);
+
+    const handleToggleCheck = (id: string) => {
+        setCheckedItems(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(id)) {
+                newSet.delete(id);
+            } else {
+                newSet.add(id);
+            }
+            return newSet;
+        });
+    };
+
+    const runTest = useCallback(async (id: string, testFn: () => Promise<string>) => {
+        setTestResults(prev => ({ ...prev, [id]: { status: 'testing' } }));
+        try {
+            const message = await testFn();
+            setTestResults(prev => ({ ...prev, [id]: { status: 'success', message } }));
+            handleToggleCheck(id); // Auto-check on success
+        } catch (error: any) {
+            setTestResults(prev => ({ ...prev, [id]: { status: 'error', message: error.message || 'Test failed' } }));
+        }
+    }, []);
+
+    const testStatusEndpoint = async () => {
+        const response = await fetch('http://localhost:8080/');
+        if (!response.ok) throw new Error(`Status ${response.status}`);
+        const data = await response.json();
+        return data.message || 'OK';
+    };
+
+    const testSaveEndpoint = async () => {
+        const response = await fetch('http://localhost:8080/api/save-design', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: 'Test Design', content: '...' }),
+        });
+        if (!response.ok) throw new Error(`Status ${response.status}`);
+        const data = await response.json();
+        return data.message || 'Saved';
+    };
+
+    const frontendItems = [
+        { id: 'fe-header', label: 'Header Component' },
+        { id: 'fe-sidebar', label: 'Sidebar Navigation' },
+        { id: 'fe-canvas', label: 'Canvas & Zoom' },
+        { id: 'fe-rightpanel', label: 'Right Panel (Client/Dev)' },
+        { id: 'fe-gemini', label: 'Gemini Service Call' },
+    ];
+
+    const backendItems = [
+        { id: 'be-status', label: 'Server Status Endpoint (/)', testFn: testStatusEndpoint },
+        { id: 'be-save', label: 'Save Design Endpoint (/api/save-design)', testFn: testSaveEndpoint },
+    ];
+
+    const renderChecklistItem = (item: { id: string, label: string }, isBackend = false) => {
+        const isChecked = checkedItems.has(item.id);
+        const testStatus = testResults[item.id]?.status || 'idle';
+        return (
+            <div key={item.id} className="flex items-center justify-between p-2.5 rounded-md bg-gray-900/50 hover:bg-gray-800/50 transition-colors">
+                <div 
+                    className="flex items-center gap-3 cursor-pointer flex-grow"
+                    onClick={() => handleToggleCheck(item.id)}
+                >
+                    <Icon
+                        name={isChecked ? 'check-circle' : 'circle'}
+                        className={`w-5 h-5 flex-shrink-0 transition-colors ${isChecked ? 'text-green-500' : 'text-gray-600'}`}
+                    />
+                    <span className={`text-sm font-medium ${isChecked ? 'line-through text-gray-500' : 'text-gray-300'}`}>
+                        {item.label}
+                    </span>
+                </div>
+                {isBackend && (
+                    <button
+                        onClick={() => runTest(item.id, (item as any).testFn)}
+                        disabled={testStatus === 'testing'}
+                        className="text-xs font-semibold bg-gray-700 hover:bg-gray-600 text-white rounded-md py-1 px-3 transition-colors disabled:bg-gray-600 disabled:cursor-wait"
+                    >
+                        {testStatus === 'testing' ? (
+                            <Icon name="loader" className="w-4 h-4 animate-spin" />
+                        ) : testStatus === 'success' ? (
+                            <Icon name="check-circle" className="w-4 h-4 text-green-400" />
+                        ) : testStatus === 'error' ? (
+                            <Icon name="x" className="w-4 h-4 text-red-400" />
+                        ) : (
+                            'Test'
+                        )}
+                    </button>
+                )}
+            </div>
+        );
+    };
+
+    return (
+         <div className="p-4 space-y-6">
+            <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                <h3 className="text-md font-semibold text-gray-200 mb-3">Frontend Components</h3>
+                <div className="space-y-2">
+                    {frontendItems.map(item => renderChecklistItem(item))}
+                </div>
+            </div>
+            <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                <h3 className="text-md font-semibold text-gray-200 mb-1">Backend Integration</h3>
+                <p className="text-xs text-gray-500 mb-3">Ensure your local Python server is running before testing.</p>
+                <div className="space-y-2">
+                    {backendItems.map(item => renderChecklistItem(item, true))}
+                </div>
+                 {Object.entries(testResults).map(([id, result]) => (
+                    result.status === 'error' && result.message && (
+                        <div key={`${id}-error`} className="mt-2 text-xs p-2 rounded-md bg-red-900/50 text-red-300 font-mono">
+                           <strong>Error on {backendItems.find(i => i.id === id)?.label}:</strong> {result.message}
+                        </div>
+                    )
+                ))}
+            </div>
+        </div>
+    );
+};
+
 
 const ServerContent: React.FC = () => {
     const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
@@ -300,7 +442,7 @@ const ServerContent: React.FC = () => {
 
 const PushContent: React.FC<{pushedFeatures: Set<string>, onToggle: (featureId: string) => void}> = ({ pushedFeatures, onToggle }) => {
     const developerOnlyFeatures = DEVELOPER_SIDEBAR_ITEMS.filter(item => 
-        !CLIENT_SIDEBAR_ITEMS.some(clientItem => clientItem.id === item.id) && !['push', 'server'].includes(item.id)
+        !CLIENT_SIDEBAR_ITEMS.some(clientItem => clientItem.id === item.id) && !['push', 'server', 'checklist'].includes(item.id)
     );
     
     return (
@@ -585,6 +727,8 @@ const ContentPanel: React.FC<ContentPanelProps> = ({ activeItem, onClose, versio
                 return <PushContent pushedFeatures={pushedFeatures} onToggle={onTogglePushFeature} />;
             case 'server':
                 return <ServerContent />;
+            case 'checklist':
+                return <ChecklistContent />;
             default:
                 return <PlaceholderContent itemName={item?.label || 'Item'} />;
         }

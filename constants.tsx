@@ -16,5 +16,6 @@ export const DEVELOPER_SIDEBAR_ITEMS = [
   { id: 'version-control', label: 'Versions', icon: <Icon name="git-branch" /> },
   { id: 'integrations', label: 'Integrations', icon: <Icon name="puzzle" /> },
   { id: 'server', label: 'Server', icon: <Icon name="server" /> },
+  { id: 'checklist', label: 'Checklist', icon: <Icon name="checklist" /> },
   { id: 'push', label: 'Push', icon: <Icon name="rocket" /> },
 ];
