@@ -1,72 +1,241 @@
 import os
 import subprocess
+import platform
+import threading
+import sys
+from typing import List, Optional
 
-# Activate virtual environment
-os.system("d:/installer_files/.venv/Scripts/activate.bat")
+# --- Configuration ---
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+SERVER_DIR = os.path.join(ROOT_DIR, 'server')
+FRONTEND_DIR = ROOT_DIR # Assuming package.json is in the root
 
-def option_1():
-    """Run the Python server."""
-    print("Running server/server.py...")
-    os.system("python server/server_py.txt")
+PYTHON_SERVER_SCRIPT_TXT = os.path.join(SERVER_DIR, 'server_py.txt')
+PYTHON_SERVER_SCRIPT = os.path.join(SERVER_DIR, 'server.py')
+NODE_AUTH_SERVER_SCRIPT_TXT = os.path.join(SERVER_DIR, 'auth_node.txt')
+NODE_AUTH_SERVER_SCRIPT = os.path.join(SERVER_DIR, 'auth.js')
 
-def option_2():
-    """Run server + frontend."""
-    print("Starting server and frontend...")
+# --- Helper Functions ---
 
-    # Run server first
-    server_cmd = "python server/server_py.txt"
-    print(f"Running: {server_cmd}")
-    server_process = subprocess.Popen(server_cmd, shell=True)
+def print_header(title: str):
+    """Prints a styled header."""
+    print("\n" + "=" * 50)
+    print(f"🚀 {title}")
+    print("=" * 50)
 
-    # Run frontend in Git Bash
-    bash_path = r"C:\Program Files\Git\bin\bash.exe"
-    frontend_cmd = "source ~/.zshrc && npm run dev"
-    print(f"Running in Git Bash: {frontend_cmd}")
-    bash_process = subprocess.Popen([bash_path, "--login", "-i", "-c", frontend_cmd])
+def check_and_rename_script(txt_path: str, final_path: str, script_name: str):
+    """Checks if a script needs renaming from .txt and guides the user."""
+    if not os.path.exists(final_path) and os.path.exists(txt_path):
+        print(f"Warning: '{os.path.basename(final_path)}' not found.")
+        try:
+            rename = input(f"Do you want to rename '{os.path.basename(txt_path)}' to '{os.path.basename(final_path)}'? (y/n): ").lower()
+            if rename == 'y':
+                os.rename(txt_path, final_path)
+                print(f"Successfully renamed to '{os.path.basename(final_path)}'.")
+                return True
+            else:
+                print(f"Skipping rename. {script_name} cannot be started.")
+                return False
+        except Exception as e:
+            print(f"Error renaming file: {e}")
+            return False
+    elif not os.path.exists(final_path):
+        print(f"Error: Required script '{os.path.basename(final_path)}' not found in '{os.path.dirname(final_path)}'.")
+        return False
+    return True
 
-    # Optional: wait for both processes to complete
-    server_process.wait()
-    bash_process.wait()
+def run_command(command: List[str], working_dir: str, name: str, env: Optional[dict] = None):
+    """Runs a command in a subprocess and streams its output."""
+    print(f"[{name}] Starting process with command: {' '.join(command)}")
+    print(f"[{name}] Working directory: {working_dir}")
+    try:
+        # Use a shell on Windows for npm/node commands if they aren't in path directly
+        use_shell = platform.system() == 'Windows'
 
-def option_3():
-    """Run frontend only."""
-    print("Starting frontend only...")
+        process = subprocess.Popen(
+            command,
+            cwd=working_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            env=env,
+            shell=use_shell
+        )
+        
+        def stream_output(pipe, prefix):
+            if pipe:
+                for line in iter(pipe.readline, ''):
+                    print(f"{prefix} {line}", end='')
+        
+        stdout_thread = threading.Thread(target=stream_output, args=(process.stdout, f"[{name}]"))
+        stderr_thread = threading.Thread(target=stream_output, args=(process.stderr, f"[{name}-ERR]"))
+        
+        stdout_thread.start()
+        stderr_thread.start()
+        
+        process.wait()
+        
+        stdout_thread.join()
+        stderr_thread.join()
 
-    bash_path = r"C:\Program Files\Git\bin\bash.exe"
-    frontend_cmd = "source ~/.zshrc && npm run dev"
-    print(f"Running in Git Bash: {frontend_cmd}")
+        print(f"[{name}] Process finished with exit code {process.returncode}.")
 
-    # Run only the frontend
-    subprocess.Popen([bash_path, "--login", "-i", "-c", frontend_cmd])
+    except FileNotFoundError:
+        print(f"[{name}-ERR] Command not found: {command[0]}. Is it installed and in your PATH?")
+    except Exception as e:
+        print(f"[{name}-ERR] An error occurred: {e}")
 
-def option_4():
-    """Placeholder for option 4."""
-    print("Option 4 selected. Functionality to be implemented.")
+# --- Task Functions ---
+
+def install_dependencies():
+    """Installs both Python and Node.js dependencies."""
+    print_header("Installing Dependencies")
+    
+    # Python dependencies
+    print("\n--- Installing Python dependencies ---")
+    pip_command = [sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt']
+    run_command(pip_command, SERVER_DIR, "pip")
+    
+    # Node.js dependencies
+    print("\n--- Installing Node.js dependencies ---")
+    if not os.path.exists(os.path.join(FRONTEND_DIR, 'package.json')):
+        print("[npm-ERR] package.json not found in the root directory. Skipping npm install.")
+        return
+    
+    npm_command = ['npm', 'install']
+    run_command(npm_command, FRONTEND_DIR, "npm")
+
+def run_python_server():
+    """Runs the Python/Flask API server."""
+    print_header("Running Python Flask Server")
+    if not check_and_rename_script(PYTHON_SERVER_SCRIPT_TXT, PYTHON_SERVER_SCRIPT, "Python server"):
+        return
+        
+    env = os.environ.copy()
+    env['PORT'] = '8080' # Set default port
+    env['FLASK_APP'] = 'server.py'
+    env['FLASK_ENV'] = 'development'
+    
+    command = [sys.executable, PYTHON_SERVER_SCRIPT]
+    run_command(command, ROOT_DIR, "Python API", env)
+
+def run_node_auth_server():
+    """Runs the Node.js/Express authentication server."""
+    print_header("Running Node.js Auth Server")
+    if not check_and_rename_script(NODE_AUTH_SERVER_SCRIPT_TXT, NODE_AUTH_SERVER_SCRIPT, "Node.js server"):
+        return
+
+    env = os.environ.copy()
+    env['PORT'] = '3001' # Set default port
+    
+    node_command = ['node', NODE_AUTH_SERVER_SCRIPT]
+    run_command(node_command, ROOT_DIR, "Node Auth", env)
+
+def run_frontend_dev_server():
+    """Runs the frontend development server (e.g., Vite)."""
+    print_header("Running Frontend Dev Server")
+    if not os.path.exists(os.path.join(FRONTEND_DIR, 'package.json')):
+        print("[npm-ERR] package.json not found. Cannot start frontend server.")
+        return
+        
+    npm_command = ['npm', 'run', 'dev']
+    run_command(npm_command, FRONTEND_DIR, "Frontend")
+
+def run_all_services():
+    """Runs all services concurrently."""
+    print_header("Starting All Services")
+
+    if not check_and_rename_script(PYTHON_SERVER_SCRIPT_TXT, PYTHON_SERVER_SCRIPT, "Python server") or \
+       not check_and_rename_script(NODE_AUTH_SERVER_SCRIPT_TXT, NODE_AUTH_SERVER_SCRIPT, "Node.js server"):
+        print("One or more server scripts are missing. Aborting.")
+        return
+
+    # Prepare environments
+    python_env = os.environ.copy()
+    python_env['PORT'] = '8080'
+    python_env['FLASK_APP'] = 'server.py'
+    python_env['FLASK_ENV'] = 'development'
+
+    node_env = os.environ.copy()
+    node_env['PORT'] = '3001'
+    
+    # Prepare commands
+    python_command = [sys.executable, PYTHON_SERVER_SCRIPT]
+    node_command = ['node', NODE_AUTH_SERVER_SCRIPT]
+    npm_command = ['npm', 'run', 'dev']
+        
+    # Create and start threads
+    python_thread = threading.Thread(target=run_command, args=(python_command, ROOT_DIR, "Python API", python_env))
+    node_thread = threading.Thread(target=run_command, args=(node_command, ROOT_DIR, "Node Auth", node_env))
+    frontend_thread = threading.Thread(target=run_command, args=(npm_command, FRONTEND_DIR, "Frontend"))
+    
+    python_thread.start()
+    node_thread.start()
+    frontend_thread.start()
+    
+    python_thread.join()
+    node_thread.join()
+    frontend_thread.join()
+
+def check_environment():
+    """Checks for necessary files and configurations."""
+    print_header("Checking Environment")
+    checks = {
+        "Python Server Script": os.path.exists(PYTHON_SERVER_SCRIPT) or os.path.exists(PYTHON_SERVER_SCRIPT_TXT),
+        "Node Auth Script": os.path.exists(NODE_AUTH_SERVER_SCRIPT) or os.path.exists(NODE_AUTH_SERVER_SCRIPT_TXT),
+        "Python Requirements": os.path.exists(os.path.join(SERVER_DIR, 'requirements.txt')),
+        "Node Dependencies": os.path.exists(os.path.join(FRONTEND_DIR, 'package.json')),
+        "Secrets .env file": os.path.exists(os.path.join(ROOT_DIR, 'secrets', '.env')),
+    }
+    
+    all_ok = True
+    for check, result in checks.items():
+        status = "✅ OK" if result else "❌ MISSING"
+        if not result:
+            all_ok = False
+        print(f"- {check}: {status}")
+    
+    if not checks["Secrets .env file"]:
+        print("\nWarning: No 'secrets/.env' file found. The servers might not work correctly without environment variables.")
+        print("Consider copying '.env.example.txt' to 'secrets/.env' and filling it out.")
+    
+    if all_ok:
+        print("\nEnvironment check passed!")
+    else:
+        print("\nSome environment checks failed. Please review the missing items.")
+
 
 def main():
+    """Main function to display the menu and handle user input."""
+    menu_options = {
+        '1': ('Install Dependencies', install_dependencies),
+        '2': ('Run Python API Server', run_python_server),
+        '3': ('Run Node.js Auth Server', run_node_auth_server),
+        '4': ('Run Frontend Dev Server', run_frontend_dev_server),
+        '5': ('Run All Services (Concurrent)', run_all_services),
+        '6': ('Check Environment', check_environment),
+        '7': ('Exit', None),
+    }
+
     while True:
-        print("\n=== Demo Menu ===")
-        print("1. Run server/server.py")
-        print("2. Run server + frontend")
-        print("3. Run frontend only")
-        print("4. Option 4")
-        print("5. Exit")
-
-        choice = input("Select an option (1-5): ").strip()
-
-        if choice == "1":
-            option_1()
-        elif choice == "2":
-            option_2()
-        elif choice == "3":
-            option_3()
-        elif choice == "4":
-            option_4()
-        elif choice == "5":
-            print("Exiting...")
-            break
+        print_header("Developer Task Runner")
+        for key, (text, _) in menu_options.items():
+            print(f"{key}. {text}")
+        
+        choice = input("Select an option: ").strip()
+        
+        if choice in menu_options:
+            if choice == '7':
+                print("Exiting...")
+                break
+            
+            _, func = menu_options[choice]
+            if func:
+                func()
         else:
-            print("Invalid choice! Please enter a number between 1 and 5.")
+            print("Invalid choice. Please try again.")
 
 if __name__ == "__main__":
     main()
