@@ -18,152 +18,28 @@ const ServerContent: React.FC = () => {
     const [jwtSecret, setJwtSecret] = useState<string>('your-super-secret-jwt-key');
     const [isJwtSecretVisible, setIsJwtSecretVisible] = useState<boolean>(false);
 
-
-    const handleDownloadRepo = () => {
-        const fileContent = `
-############################################################
-# OpenExpress Development Server Setup
-############################################################
-
-This file contains the code and instructions to set up your local
-development server. Create the files as described below in a new directory.
-
-------------------------------------------------------------
-1. Create a file named 'package.json'
-------------------------------------------------------------
-
-Copy and paste the following content. This includes 'cors' to allow
-requests from your frontend application.
-
-\`\`\`json
-{
-  "name": "openexpress-server",
-  "version": "1.0.0",
-  "description": "Backend server for OpenExpress.",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
-  "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^4.18.2"
-  }
-}
-\`\`\`
-
-------------------------------------------------------------
-2. Create a file named '.env.example'
-------------------------------------------------------------
-
-Copy this into .env.example. You will rename this to '.env' and add
-your secrets for a real application.
-
-\`\`\`
-# Port for the server to run on
-PORT=8080
-
-# Your database connection string
-DATABASE_URL="your_connection_string_here"
-
-# Add your JWT Secret for token signing
-JWT_SECRET="your-super-secret-jwt-key"
-\`\`\`
-
-------------------------------------------------------------
-3. Create a file named 'index.js'
-------------------------------------------------------------
-
-This is the main server file. It's set up to handle JSON and CORS.
-A sample '/api/save-design' endpoint is included to demonstrate
-receiving data from the frontend.
-
-\`\`\`javascript
-/* 
-  A functional Express.js server for the OpenExpress app.
-*/
-const express = require('express');
-const cors = require('cors');
-const app = express();
-const PORT = process.env.PORT || 8080;
-
-// Middleware
-app.use(cors()); // Enable Cross-Origin Resource Sharing
-app.use(express.json()); // Enable parsing of JSON bodies in requests
-
-// Routes
-app.get('/', (req, res) => {
-  res.json({ message: 'OpenExpress server is running!' });
-});
-
-app.post('/api/save-design', (req, res) => {
-  console.log('Received design data to save:', req.body);
-  
-  // Example of how you might use a JWT secret in a real app
-  const authToken = req.headers.authorization;
-  if (!authToken || !authToken.startsWith('Bearer ')) {
-    // return res.status(401).json({ error: 'Authorization token is required.' });
-    console.log('No auth token present, proceeding for demo.');
-  }
-
-  if (!req.body || !req.body.title) {
-    return res.status(400).json({ error: 'Design title is required.' });
-  }
-  
-  // In a real app, you would save this data to a database.
-  res.status(201).json({ 
-    message: 'Design saved successfully!', 
-    designId: \`dsn_\${Date.now()}\`,
-    dataReceived: req.body 
-  });
-});
-
-// Start the server
-app.listen(PORT, () => {
-  console.log(\`Server listening on port \${PORT}\`);
-});
-\`\`\`
-
-------------------------------------------------------------
-After creating these files, follow the setup guide in the app:
-- Run 'npm install'
-- Create '.env' from '.env.example' and configure it
-- Run 'npm start' to start your server
-------------------------------------------------------------
-`;
-        const blob = new Blob([fileContent.trimStart()], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'server-setup-guide.txt';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    };
-    
-    const RepoStepDetails: React.FC = () => (
+    const PrepareFilesStepDetails: React.FC = () => (
         <div>
-            <p className="font-semibold mb-1 text-gray-200">Option A: Clone (Git)</p>
-            <p className="text-gray-400 mb-3">Use 'git clone <repository_url>' in your terminal.</p>
-            
-            <p className="font-semibold mb-1 text-gray-200">Option B: Download</p>
-            <p className="text-gray-400 mb-2">Get a text file with setup instructions and all necessary code.</p>
-            <button
-                onClick={handleDownloadRepo}
-                className="w-full flex items-center justify-center gap-2 text-xs font-semibold bg-gray-700 hover:bg-gray-600 text-white rounded-md py-1.5 transition-colors"
-            >
-                <Icon name="download" className="w-4 h-4" />
-                Download server-setup-guide.txt
-            </button>
+            <p className="font-semibold mb-1 text-gray-200">Prepare Server Files</p>
+            <p className="text-gray-400">
+                The <code className="text-xs bg-gray-900 p-1 rounded font-mono">server/</code> directory contains the necessary files:
+            </p>
+            <ul className="list-disc list-inside text-gray-400 my-2 pl-2">
+                <li><code className="text-xs bg-gray-900 p-1 rounded font-mono">server_py.txt</code>: The Python server code.</li>
+                <li><code className="text-xs bg-gray-900 p-1 rounded font-mono">requirements.txt</code>: Python dependencies.</li>
+            </ul>
+            <p className="text-gray-400">
+                On your local machine, you should rename <code className="text-xs bg-gray-900 p-1 rounded font-mono">server_py.txt</code> to <code className="text-xs bg-gray-900 p-1 rounded font-mono">server.py</code> before running it.
+            </p>
         </div>
     );
-
+    
     const setupSteps = [
-        { id: 1, text: "Clone or Download server code", details: <RepoStepDetails /> },
-        { id: 2, text: "Install dependencies", details: "Navigate into the project directory and run 'npm install' or 'yarn install' to download all required packages." },
-        { id: 3, text: "Configure environment", details: "Create a '.env' file in the server's root directory. Copy the contents of '.env.example' and fill in your secrets, including the JWT_SECRET." },
-        { id: 4, text: "Start the server", details: "Run 'npm start' or 'yarn start' in the server's directory to launch the backend on a local port." },
-        { id: 5, text: "Click 'Connect' above", details: "Once the server is running, use the button in the 'Backend Server' panel above to establish a connection for the UI." },
+        { id: 1, text: "Prepare server files", details: <PrepareFilesStepDetails /> },
+        { id: 2, text: "Install dependencies", details: "Navigate to your local server directory and run 'pip install -r requirements.txt' to install Flask and Flask-Cors." },
+        { id: 3, text: "Configure environment", details: "The server will run on port 8080 by default. You can set the PORT environment variable to change this. Your JWT_SECRET should be handled as an environment variable in a real application." },
+        { id: 4, text: "Start the server", details: "Run 'python server.py' in your server's directory. It will start a local development server." },
+        { id: 5, text: "Click 'Connect' above", details: "Once the server is running, use the button in the 'Backend Server' panel to establish a connection for the UI." },
     ];
 
     const handleToggleStep = (stepId: number) => {
@@ -200,7 +76,7 @@ After creating these files, follow the setup guide in the app:
     return (
         <div className="p-4 space-y-6">
              <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                <h3 className="text-md font-semibold text-gray-200 mb-3">Backend Server</h3>
+                <h3 className="text-md font-semibold text-gray-200 mb-3">Backend Server (Python/Flask)</h3>
                 <div className="flex items-center justify-between p-3 bg-gray-900/50 rounded-md">
                     <span className="text-sm font-medium text-gray-300">Status</span>
                     <div className="flex items-center gap-2">
