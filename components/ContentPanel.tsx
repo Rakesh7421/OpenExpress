@@ -591,6 +591,33 @@ const ChecklistContent: React.FC = () => {
         const data = await response.json();
         return data.imageUrl || 'Uploaded';
     };
+    
+    // --- Termux/Mobile Tests ---
+    const testOfflineSupport = async () => {
+      if ('serviceWorker' in navigator && 'caches' in window) {
+        return "Service Worker & Cache API are supported.";
+      }
+      throw new Error("Offline features may not work; APIs not found.");
+    };
+
+    const testTouchEvents = async () => {
+      if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+        return "Touch events are supported.";
+      }
+      throw new Error("Device does not report touch support.");
+    };
+    
+    const testPwaManifest = async () => {
+      if (document.querySelector('link[rel="manifest"]')) {
+        return "Web App Manifest is linked.";
+      }
+      throw new Error("App is not configured as a PWA (no manifest found).");
+    };
+
+    const testTermuxApiAccess = async () => {
+        throw new Error("Direct Termux API access from browser is not possible due to security restrictions. Use a local WebSocket server for bridging.");
+    };
+
 
     const frontendItems = [
         { id: 'fe-header', label: 'Header Component' },
@@ -606,7 +633,21 @@ const ChecklistContent: React.FC = () => {
         { id: 'be-upload', label: 'Image Upload Endpoint (/api/image-upload)', testFn: testUploadEndpoint },
     ];
 
-    const renderChecklistItem = (item: { id: string, label: string }, isBackend = false) => {
+    const termuxItems = [
+        { id: 'termux-offline', label: 'Offline Functionality', testFn: testOfflineSupport },
+        { id: 'termux-touch', label: 'Touch Event Support', testFn: testTouchEvents },
+        { id: 'termux-pwa', label: 'PWA Manifest Check', testFn: testPwaManifest },
+        { id: 'termux-api', label: 'Direct Termux API Access', testFn: testTermuxApiAccess },
+    ];
+    
+    const allTestableItems = useMemo(() => 
+        [...backendItems, ...termuxItems].reduce((acc, item) => {
+            acc[item.id] = item.label;
+            return acc;
+        }, {} as Record<string, string>), 
+    [backendItems, termuxItems]);
+
+    const renderChecklistItem = (item: { id: string, label: string; testFn?: () => Promise<string> }, isBackend = false) => {
         const isChecked = checkedItems.has(item.id);
         const testStatus = testResults[item.id]?.status || 'idle';
         return (
@@ -623,9 +664,9 @@ const ChecklistContent: React.FC = () => {
                         {item.label}
                     </span>
                 </div>
-                {isBackend && (
+                {item.testFn && (
                     <button
-                        onClick={() => runTest(item.id, (item as any).testFn)}
+                        onClick={() => runTest(item.id, item.testFn!)}
                         disabled={testStatus === 'testing'}
                         className="text-xs font-semibold bg-gray-700 hover:bg-gray-600 text-white rounded-md py-1 px-3 transition-colors disabled:bg-gray-600 disabled:cursor-wait"
                     >
@@ -658,10 +699,24 @@ const ChecklistContent: React.FC = () => {
                 <div className="space-y-2">
                     {backendItems.map(item => renderChecklistItem(item, true))}
                 </div>
-                 {Object.entries(testResults).map(([id, result]) => (
+                 {Object.entries(testResults).filter(([id]) => allTestableItems[id]).map(([id, result]) => (
                     result.status === 'error' && result.message && (
                         <div key={`${id}-error`} className="mt-2 text-xs p-2 rounded-md bg-red-900/50 text-red-300 font-mono">
-                           <strong>Error on {backendItems.find(i => i.id === id)?.label}:</strong> {result.message}
+                           <strong>Error on {allTestableItems[id]}:</strong> {result.message}
+                        </div>
+                    )
+                ))}
+            </div>
+             <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                <h3 className="text-md font-semibold text-gray-200 mb-1">Mobile & Termux Compatibility</h3>
+                <p className="text-xs text-gray-500 mb-3">Checks for features relevant in mobile or Termux environments.</p>
+                <div className="space-y-2">
+                    {termuxItems.map(item => renderChecklistItem(item, true))}
+                </div>
+                 {Object.entries(testResults).filter(([id]) => allTestableItems[id]).map(([id, result]) => (
+                    result.status === 'error' && result.message && (
+                        <div key={`${id}-error-termux`} className="mt-2 text-xs p-2 rounded-md bg-red-900/50 text-red-300 font-mono">
+                           <strong>Info on {allTestableItems[id]}:</strong> {result.message}
                         </div>
                     )
                 ))}

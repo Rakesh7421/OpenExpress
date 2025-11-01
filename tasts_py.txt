@@ -1,16 +1,13 @@
 import os
-from pyb import pyb
-#pyb ("""
-#     #source  /d/installer_files/.venv/Scripts/activate
-#""")
+import subprocess
+
+# Activate virtual environment
 os.system("d:/installer_files/.venv/Scripts/activate.bat")
+
 def option_1():
     """Run the Python server."""
     print("Running server/server.py...")
     os.system("python server/server_py.txt")
-
-import os
-import subprocess
 
 def option_2():
     """Run server + frontend."""
@@ -32,8 +29,15 @@ def option_2():
     bash_process.wait()
 
 def option_3():
-    """Placeholder for option 3."""
-    print("Option 3 selected. Functionality to be implemented.")
+    """Run frontend only."""
+    print("Starting frontend only...")
+
+    bash_path = r"C:\Program Files\Git\bin\bash.exe"
+    frontend_cmd = "source ~/.zshrc && npm run dev"
+    print(f"Running in Git Bash: {frontend_cmd}")
+
+    # Run only the frontend
+    subprocess.Popen([bash_path, "--login", "-i", "-c", frontend_cmd])
 
 def option_4():
     """Placeholder for option 4."""
@@ -43,8 +47,8 @@ def main():
     while True:
         print("\n=== Demo Menu ===")
         print("1. Run server/server.py")
-        print("2. Starting server and frontend...")
-        print("3. Option 3")
+        print("2. Run server + frontend")
+        print("3. Run frontend only")
         print("4. Option 4")
         print("5. Exit")
 
