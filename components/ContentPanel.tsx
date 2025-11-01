@@ -303,6 +303,20 @@ After creating these files, follow the setup guide in the app:
                     })}
                 </ul>
             </div>
+            <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                <h3 className="text-md font-semibold text-gray-200 mb-3 flex items-center gap-2">
+                   <Icon name="info" className="w-5 h-5 text-brand-400" />
+                   Development Notes
+                </h3>
+                <p className="text-sm text-gray-400 leading-relaxed">
+                    For developers on a host system with the username <code className="text-xs bg-gray-900 p-1 rounded font-mono">tempo</code> or <code className="text-xs bg-gray-900 p-1 rounded font-mono">TEMPO</code>, please ensure your node modules path ("nod models patch") is set to:
+                    <br />
+                    <code className="block mt-2 text-xs bg-gray-900 p-2 rounded font-mono break-all">D:\installer_files\node_modules\OpenExpress</code>
+                </p>
+                 <p className="text-xs text-gray-500 mt-3">
+                    This is a special instruction based on your system configuration.
+                </p>
+            </div>
         </div>
     );
 };
