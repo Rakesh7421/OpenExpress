@@ -2,7 +2,7 @@
 // To use this:
 // 1. Rename this file from 'auth_node.txt' to 'auth.js'.
 // 2. In the 'server/' directory, run 'npm install' to get the dependencies from package.json.
-// 3. Create a '.env' file in the 'server/' directory.
+// 3. Create a 'secrets' directory in the project root, and a '.env' file inside it (e.g., /secrets/.env).
 // 4. Follow the instructions below to get API credentials for each platform.
 // 5. Add all credentials to your .env file.
 // 6. Run the server with 'node auth.js'.
@@ -11,8 +11,8 @@
 --------------------------------------------------------------------------------
 Setup Instructions & .env Configuration
 --------------------------------------------------------------------------------
-Create a file named '.env' in this 'server/' directory and add the following,
-replacing the placeholder values with your actual credentials.
+Create a file named '.env' in a 'secrets/' directory at the project root (e.g., your-project/secrets/.env).
+Add the following key-value pairs, replacing the placeholder values with your actual credentials.
 
 PORT=3001
 SESSION_SECRET=a_very_secret_key_for_sessions_that_is_long_and_random
@@ -28,7 +28,8 @@ const passport = require('passport');
 const session = require('express-session');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '..', 'secrets', '.env') });
 const { findOrCreateUser } = require('./database');
 
 // API and Middleware imports
