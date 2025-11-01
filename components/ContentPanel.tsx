@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AppVersion } from '../types';
 import { Icon } from './common/Icon';
 import { DEVELOPER_SIDEBAR_ITEMS, CLIENT_SIDEBAR_ITEMS } from '../constants';
@@ -30,7 +30,435 @@ interface ContentPanelProps {
   onTogglePushFeature: (featureId: string) => void;
 }
 
-// Authentication Modal Component (reusable for integrations and branding)
+// Reusable styled select component
+const StyledSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement> & { label: string; options: string[] }> = ({ label, id, options, ...props }) => (
+  <div>
+    <label htmlFor={id} className="block text-sm font-medium text-gray-400 mb-1">
+      {label}
+    </label>
+    <select
+      id={id}
+      className="w-full p-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition disabled:opacity-50"
+      {...props}
+    >
+      <option value="">Select {label}...</option>
+      {options.map(option => (
+        <option key={option} value={option.toLowerCase().replace(/\s|\(|\)/g, '_')}>{option}</option>
+      ))}
+    </select>
+  </div>
+);
+
+
+const TemplatesContent: React.FC = () => <div className="p-4 text-gray-400">Templates panel content goes here.</div>;
+const TextContent: React.FC = () => <div className="p-4 text-gray-400">Text editing tools and presets will be here.</div>;
+const ImagesContent: React.FC = () => <div className="p-4 text-gray-400">Image library and upload options.</div>;
+const ShapesContent: React.FC = () => <div className="p-4 text-gray-400">Shape library and creation tools.</div>;
+const AiSuggestContent: React.FC = () => <div className="p-4 text-gray-400">AI-powered suggestions for content and design.</div>;
+
+const PlatformConnectionConfig: React.FC<{
+  platform: string;
+  onBack: () => void;
+}> = ({ platform, onBack }) => {
+  const [brand, setBrand] = useState('');
+  const [stage, setStage] = useState('');
+  const [credentialType, setCredentialType] = useState('');
+  const [appId, setAppId] = useState('');
+  const [appSecret, setAppSecret] = useState('');
+
+  const brands = ['Nike', 'Adidas', 'Puma'];
+  const stages = ['Live', 'Dev'];
+  const credentialTypes = ['App', 'Token Page Access', 'Token User Access', 'Token Group Access'];
+
+  const generatedVariable = useMemo(() => {
+    if (!brand || !platform || !stage || !credentialType) return '';
+    const formattedBrand = brand.toUpperCase();
+    const formattedPlatform = platform.toUpperCase().replace(/\s/g, '_').replace(/\(|\)/g, '');
+    const formattedStage = stage.toUpperCase();
+    const formattedCred = credentialType.toUpperCase().replace(/\s/g, '_');
+    return `${formattedBrand}_${formattedPlatform}_${formattedStage}_${formattedCred}`;
+  }, [brand, platform, stage, credentialType]);
+
+  const canSave = brand && platform && stage && credentialType && (credentialType !== 'app' || (appId.trim() && appSecret.trim()));
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="flex items-center justify-between">
+          <h3 className="text-md font-semibold text-gray-200">Configure {platform}</h3>
+      </div>
+      <p className="text-sm text-gray-400 -mt-2">
+        Construct the precise environment variable for your post.
+      </p>
+
+      <div className="space-y-3">
+        <StyledSelect label="Brand" id="dev-brand" options={brands} value={brand} onChange={e => setBrand(e.target.value)} />
+        <StyledSelect label="Platform" id="dev-platform" options={[platform]} value={platform.toLowerCase().replace(/\s|\(|\)/g, '_')} disabled />
+        <StyledSelect label="Stage" id="dev-stage" options={stages} value={stage} onChange={e => setStage(e.target.value)} />
+        <StyledSelect 
+          label="Credential Type" 
+          id="dev-cred-type" 
+          options={credentialTypes} 
+          value={credentialType} 
+          onChange={e => {
+            const newCredType = e.target.value;
+            setCredentialType(newCredType);
+            if (newCredType !== 'app') {
+              setAppId('');
+              setAppSecret('');
+            }
+          }} 
+        />
+        {credentialType === 'app' && (
+          <div className="space-y-3 pt-2 animate-fade-in">
+              <div>
+                  <label htmlFor="app-id" className="block text-sm font-medium text-gray-400 mb-1">
+                      App ID
+                  </label>
+                  <input
+                      id="app-id"
+                      type="text"
+                      value={appId}
+                      onChange={(e) => setAppId(e.target.value)}
+                      className="w-full p-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition font-mono text-sm"
+                      placeholder="Enter the App ID"
+                  />
+              </div>
+              <div>
+                  <label htmlFor="app-secret" className="block text-sm font-medium text-gray-400 mb-1">
+                      App Secret
+                  </label>
+                  <input
+                      id="app-secret"
+                      type="password"
+                      value={appSecret}
+                      onChange={(e) => setAppSecret(e.target.value)}
+                      className="w-full p-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition font-mono text-sm"
+                      placeholder="Enter the App Secret"
+                  />
+              </div>
+          </div>
+        )}
+      </div>
+
+      {generatedVariable && (
+        <div className="mt-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700">
+          <h4 className="text-sm font-semibold text-gray-300">Generated Variable</h4>
+          <code className="text-xs text-brand-300 font-mono break-all">{generatedVariable}</code>
+        </div>
+      )}
+      <div className="flex items-center gap-2 pt-2">
+         <button onClick={onBack} className="flex-1 px-4 py-2 text-sm font-semibold text-gray-300 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors">
+            Back
+        </button>
+        <button 
+            disabled={!canSave}
+            className="flex-1 px-4 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 rounded-lg transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed"
+        >
+            Save Configuration
+        </button>
+      </div>
+    </div>
+  );
+};
+
+
+const BrandingContent: React.FC = () => {
+    const [connectedAccounts, setConnectedAccounts] = useState<Set<string>>(new Set());
+    const [authPlatform, setAuthPlatform] = useState<string | null>(null);
+    const [configPlatform, setConfigPlatform] = useState<string | null>(null);
+
+
+    const handleAuthSuccess = (platform: string) => {
+        setConnectedAccounts(prev => new Set(prev).add(platform));
+        setAuthPlatform(null);
+    };
+
+    if (configPlatform) {
+        return <PlatformConnectionConfig platform={configPlatform} onBack={() => setConfigPlatform(null)} />;
+    }
+
+    const socialAccounts = [
+        { id: 'meta', name: 'Meta', icon: 'meta' },
+        { id: 'x', name: 'X (Twitter)', icon: 'x' },
+        { id: 'linkedin', name: 'LinkedIn', icon: 'linkedin' },
+        { id: 'tiktok', name: 'TikTok', icon: 'tiktok' },
+    ];
+
+    return (
+        <div className="p-4 space-y-6">
+             {authPlatform && <AuthModal platform={authPlatform} onClose={() => setAuthPlatform(null)} onSuccess={() => handleAuthSuccess(authPlatform)} />}
+            <div>
+                <h3 className="text-md font-semibold text-gray-200">Brand Kit</h3>
+                <div className="mt-2 p-4 bg-gray-800/50 rounded-lg border border-gray-700/50 flex items-center gap-4">
+                    <div className="w-16 h-16 bg-gray-700 rounded-md flex items-center justify-center">
+                        <Icon name="logo" className="w-8 h-8 text-brand-400" />
+                    </div>
+                    <div>
+                        <h4 className="font-semibold text-white">Your Brand</h4>
+                        <button className="text-sm text-brand-400 hover:text-brand-300">Upload Logo</button>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <h3 className="text-md font-semibold text-gray-200">Platform Connections</h3>
+                <div className="mt-2 space-y-2">
+                    {socialAccounts.map(account => {
+                        const isConnected = connectedAccounts.has(account.name);
+                        return (
+                            <div key={account.id} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                                <div className="flex items-center gap-3">
+                                    <Icon name={account.icon} className="w-6 h-6" />
+                                    <span className="font-medium text-gray-300">{account.name}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                     <button 
+                                        onClick={() => setConfigPlatform(account.name)}
+                                        className="text-xs font-semibold bg-gray-700 hover:bg-gray-600 text-white rounded-md py-1 px-3 transition-colors"
+                                    >
+                                        Configure
+                                    </button>
+                                    <button 
+                                        onClick={() => isConnected ? setConnectedAccounts(prev => { const newSet = new Set(prev); newSet.delete(account.name); return newSet; }) : setAuthPlatform(account.name)}
+                                        className={`text-xs font-semibold rounded-md py-1 px-3 transition-colors ${isConnected ? 'bg-red-900/60 hover:bg-red-800/70 text-red-300' : 'bg-brand-600 hover:bg-brand-500 text-white'}`}
+                                    >
+                                        {isConnected ? 'Disconnect' : 'Connect'}
+                                    </button>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+const CollaborationContent: React.FC = () => <div className="p-4 text-gray-400">Collaboration tools, comments, and sharing options.</div>;
+const VersionControlContent: React.FC = () => <div className="p-4 text-gray-400">History of changes, branching, and version tagging.</div>;
+
+const IntegrationsContent: React.FC = () => {
+    const integrations = [
+        { name: 'Google Drive', icon: 'drive' },
+        { name: 'Slack', icon: 'slack' },
+        { name: 'Figma', icon: 'figma' },
+        { name: 'Dropbox', icon: 'dropbox' },
+    ];
+
+    return (
+        <div className="p-4 space-y-4">
+            <h3 className="text-md font-semibold text-gray-200">Connect Your Apps</h3>
+             <div className="grid grid-cols-2 gap-3">
+                {integrations.map(int => (
+                    <div key={int.name} className="p-4 bg-gray-800/50 rounded-lg flex flex-col items-center justify-center text-center gap-3 border border-gray-700/50 hover:bg-gray-800 transition-colors">
+                        <Icon name={int.icon} className="w-8 h-8" />
+                        <span className="text-sm font-medium text-gray-300">{int.name}</span>
+                        <button className="text-xs font-semibold bg-gray-700 hover:bg-gray-600 text-white rounded-md py-1 px-3 transition-colors">
+                            Connect
+                        </button>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+// --- API Action Center ---
+
+const apiActions: ApiAction[] = [
+    { id: 'meta-post-page', platform: 'Meta', label: 'Post Video to Page', endpoint: '/api/meta/page/video', method: 'POST', inputs: [{ name: 'video', label: 'Video File', type: 'file' }, { name: 'description', label: 'Description', type: 'textarea', placeholder: 'Tell people about your video...' }], description: 'Uploads a video to a Facebook Page.' },
+    { id: 'meta-post-group', platform: 'Meta', label: 'Post Video to Group', endpoint: '/api/meta/group/video', method: 'POST', inputs: [{ name: 'video', label: 'Video File', type: 'file' }, { name: 'description', label: 'Description', type: 'textarea' }], description: 'Uploads a video to a Facebook Group you manage.' },
+    { id: 'x-post-tweet', platform: 'X (Twitter)', label: 'Post a Tweet', endpoint: '/api/twitter/tweet', method: 'POST', inputs: [{ name: 'text', label: 'Tweet Text', type: 'textarea', placeholder: "What's happening?" }], description: 'Publishes a new tweet to your profile.' },
+    { id: 'linkedin-post-profile', platform: 'LinkedIn', label: 'Post to Profile', endpoint: '/api/linkedin/profile/post', method: 'POST', inputs: [{ name: 'text', label: 'Post Content', type: 'textarea' }], description: 'Shares a new post to your LinkedIn profile.' },
+    { id: 'tiktok-get-user', platform: 'TikTok', label: 'Fetch User Info', endpoint: '/api/tiktok/user', method: 'GET', inputs: [], description: 'Retrieves basic profile information for the authenticated user.' },
+];
+
+const ApiActionTester: React.FC<{ action: ApiAction; onClose: () => void }> = ({ action, onClose }) => {
+    const [formState, setFormState] = useState<{ [key: string]: string | File }>({});
+    const [response, setResponse] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value, type } = e.target;
+        if (type === 'file') {
+            const files = (e.target as HTMLInputElement).files;
+            if (files && files.length > 0) {
+                setFormState(prev => ({ ...prev, [name]: files[0] }));
+            }
+        } else {
+            setFormState(prev => ({ ...prev, [name]: value }));
+        }
+    };
+    
+    const handleRunAction = async () => {
+        setIsLoading(true);
+        setResponse(null);
+        setError(null);
+        
+        // Simulate API call
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        try {
+            // In a real app, this would be a fetch call to the Node.js server
+            // For now, we simulate success or failure
+            if (Math.random() > 0.1) { // 90% success rate
+                 setResponse(JSON.stringify({
+                    success: true,
+                    message: `${action.label} executed successfully.`,
+                    timestamp: new Date().toISOString(),
+                    data: formState,
+                }, null, 2));
+            } else {
+                throw new Error("Simulated API Error: The server returned a 500 status.");
+            }
+        } catch (e) {
+            const message = e instanceof Error ? e.message : 'An unknown error occurred.';
+            setError(message);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in">
+            <div className="bg-gray-800 p-6 rounded-lg shadow-xl border border-gray-700 w-full max-w-lg relative flex flex-col max-h-[90vh]">
+                <h3 className="text-lg font-semibold text-white mb-2">{action.label}</h3>
+                <p className="text-sm text-gray-400 mb-1">{action.description}</p>
+                <div className="mb-4 text-xs font-mono bg-gray-900 p-2 rounded-md text-gray-400">
+                    <span className={`font-bold ${action.method === 'POST' ? 'text-yellow-400' : 'text-green-400'}`}>{action.method}</span>
+                    <span className="text-gray-500"> {action.endpoint}</span>
+                </div>
+                
+                <div className="space-y-4 flex-grow overflow-y-auto pr-2">
+                    {action.inputs.map(input => (
+                        <div key={input.name}>
+                            <label htmlFor={input.name} className="block text-sm font-medium text-gray-300 mb-1">{input.label}</label>
+                            {input.type === 'textarea' ? (
+                                <textarea
+                                    id={input.name}
+                                    name={input.name}
+                                    rows={4}
+                                    placeholder={input.placeholder}
+                                    onChange={handleInputChange}
+                                    className="w-full p-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition"
+                                />
+                            ) : (
+                                <input
+                                    id={input.name}
+                                    name={input.name}
+                                    type={input.type}
+                                    onChange={handleInputChange}
+                                    className="w-full p-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100"
+                                />
+                            )}
+                        </div>
+                    ))}
+
+                    {(response || error) && (
+                        <div className="mt-4">
+                            <h4 className="text-sm font-semibold mb-2">Response</h4>
+                            <pre className={`p-3 rounded-md text-xs font-mono overflow-x-auto ${error ? 'bg-red-900/40 text-red-300' : 'bg-green-900/40 text-green-300'}`}>
+                                {response || error}
+                            </pre>
+                        </div>
+                    )}
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-gray-700/50 flex-shrink-0">
+                    <button
+                        onClick={handleRunAction}
+                        disabled={isLoading}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 rounded-lg transition-colors disabled:bg-gray-500"
+                    >
+                        {isLoading ? <Icon name="loader" className="w-5 h-5 animate-spin" /> : <Icon name="rocket" className="w-5 h-5" />}
+                        <span>{isLoading ? 'Executing...' : 'Run Action'}</span>
+                    </button>
+                </div>
+
+                <button onClick={onClose} className="absolute top-3 right-3 p-1.5 text-gray-500 hover:text-white rounded-full hover:bg-gray-700 transition-colors">
+                    <Icon name="x" className="w-4 h-4" />
+                </button>
+            </div>
+        </div>
+    );
+};
+
+const ApiActionCenter: React.FC = () => {
+    const [selectedAction, setSelectedAction] = useState<ApiAction | null>(null);
+
+    const groupedActions = apiActions.reduce((acc, action) => {
+        if (!acc[action.platform]) {
+            acc[action.platform] = [];
+        }
+        acc[action.platform].push(action);
+        return acc;
+    }, {} as { [key: string]: ApiAction[] });
+
+    return (
+        <div className="p-4 space-y-6">
+            {selectedAction && <ApiActionTester action={selectedAction} onClose={() => setSelectedAction(null)} />}
+            {Object.entries(groupedActions).map(([platform, actions]) => (
+                <div key={platform}>
+                    <h3 className="text-md font-semibold text-gray-200 mb-2">{platform}</h3>
+                    <div className="space-y-2">
+                        {actions.map(action => (
+                            <button
+                                key={action.id}
+                                onClick={() => setSelectedAction(action)}
+                                className="w-full text-left p-3 bg-gray-800/50 hover:bg-gray-800 rounded-lg transition-colors"
+                            >
+                                <span className="font-medium text-sm text-gray-300">{action.label}</span>
+                                <p className="text-xs text-gray-500 mt-1">{action.description}</p>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+
+const PushContent: React.FC<{
+    pushedFeatures: Set<string>;
+    onTogglePushFeature: (featureId: string) => void;
+}> = ({ pushedFeatures, onTogglePushFeature }) => {
+    
+    const allDeveloperItems = DEVELOPER_SIDEBAR_ITEMS.filter(
+        item => !CLIENT_SIDEBAR_ITEMS.some(clientItem => clientItem.id === item.id)
+    );
+
+    return (
+        <div className="p-4 space-y-4">
+            <h3 className="text-md font-semibold text-gray-200">Push to Client View</h3>
+            <p className="text-sm text-gray-400">
+                Select developer features to make them available in the Client version of the app.
+            </p>
+            <div className="space-y-2">
+                {allDeveloperItems.map(item => (
+                    <div key={item.id} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                             <div className="w-6 h-6 text-brand-400">{item.icon}</div>
+                            <span className="font-medium text-gray-300">{item.label}</span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            className="sr-only peer"
+                            checked={pushedFeatures.has(item.id)}
+                            onChange={() => onTogglePushFeature(item.id)}
+                          />
+                          <div className="w-11 h-6 bg-gray-600 rounded-full peer peer-focus:ring-4 peer-focus:ring-brand-800 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div>
+                        </label>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+// Authentication Modal Component (reusable for integrations)
 const AuthModal: React.FC<{
   platform: string;
   onClose: () => void;
@@ -135,7 +563,6 @@ const ChecklistContent: React.FC = () => {
             setTestResults(prev => ({ ...prev, [id]: { status: 'success', message } }));
             handleToggleCheck(id); // Auto-check on success
         } catch (error) {
-            // FIX: Safely access message property from 'unknown' error type.
             const message = error instanceof Error ? error.message : 'Test failed';
             setTestResults(prev => ({ ...prev, [id]: { status: 'error', message } }));
         }
@@ -302,15 +729,29 @@ const ServerContent: React.FC = () => {
         setVisibleTooltip(prev => (prev === stepId ? null : stepId));
     };
 
-    const handleToggleConnection = () => {
-        setTestResult(null); // Clear test results on connect/disconnect
+    const handleToggleConnection = async () => {
+        setTestResult(null);
         if (status === 'connected') {
             setStatus('disconnected');
-        } else if (status === 'disconnected') {
-            setStatus('connecting');
-            setTimeout(() => {
-                setStatus('connected');
-            }, 1500);
+            return;
+        }
+
+        setStatus('connecting');
+        try {
+            const response = await fetch('http://localhost:8080/');
+            if (!response.ok) {
+                throw new Error(`Server responded with status: ${response.status}`);
+            }
+            const data = await response.json();
+            setStatus('connected');
+            setTestResult({ status: 'success', message: data.message || 'Connection successful!' });
+        } catch (error) {
+            console.error('Connection attempt failed:', error);
+            setStatus('disconnected');
+            const message = error instanceof Error ? error.message : 'Connection failed. Is the server running?';
+            setTestResult({ status: 'error', message });
+        } finally {
+            setTimeout(() => setTestResult(null), 5000);
         }
     };
 
@@ -325,7 +766,8 @@ const ServerContent: React.FC = () => {
             setTestResult({ status: 'success', message: data.message || 'Successfully connected!' });
         } catch (error) {
             console.error('Connection test failed:', error);
-            setTestResult({ status: 'error', message: 'Connection failed. Is the server running?' });
+            const message = error instanceof Error ? error.message : 'Connection failed. Is the server running?';
+            setTestResult({ status: 'error', message });
         } finally {
             setTimeout(() => setTestResult(null), 5000); // Clear message after 5 seconds
         }
@@ -341,8 +783,8 @@ const ServerContent: React.FC = () => {
                 <div className="flex items-center justify-between p-3 bg-gray-900/50 rounded-md">
                     <span className="text-sm font-medium text-gray-300">Status</span>
                     <div className="flex items-center gap-2">
-                        <div className={`w-2.5 h-2.5 rounded-full transition-colors ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                        <span className={`text-sm font-semibold ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
+                        <div className={`w-2.5 h-2.5 rounded-full transition-colors ${isConnected ? 'bg-green-500' : isConnecting ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'}`}></div>
+                        <span className={`text-sm font-semibold ${isConnected ? 'text-green-400' : isConnecting ? 'text-yellow-400' : 'text-red-400'}`}>
                             {isConnecting ? 'Connecting...' : isConnected ? 'Connected' : 'Disconnected'}
                         </span>
                     </div>
@@ -401,651 +843,96 @@ const ServerContent: React.FC = () => {
                 </button>
 
                 {testResult && testResult.status !== 'idle' && (
-                    <div className={`mt-3 text-center text-xs p-2 rounded-md transition-opacity duration-300 ${
-                        testResult.status === 'testing' ? 'opacity-50' : 'opacity-100'
-                    } ${
-                        testResult.status === 'success' ? 'bg-green-900/50 text-green-300' : 
-                        testResult.status === 'error' ? 'bg-red-900/50 text-red-300' :
-                        'bg-gray-700/50 text-gray-400'
-                    }`}>
+                    <div className={`mt-3 text-xs text-center p-2 rounded-md font-medium
+                        ${testResult.status === 'success' ? 'bg-green-900/50 text-green-300' : ''}
+                        ${testResult.status === 'error' ? 'bg-red-900/50 text-red-300' : ''}
+                        ${testResult.status === 'testing' ? 'bg-blue-900/50 text-blue-300' : ''}
+                    `}>
                         {testResult.message}
                     </div>
                 )}
             </div>
             
             <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                <h3 className="text-md font-semibold text-gray-200 mb-3 flex items-center gap-2">
-                   <Icon name="clipboard-list" className="w-5 h-5 text-brand-400" />
-                   Setup Guide & To-Do
-                </h3>
-                <ul className="space-y-1">
-                    {setupSteps.map(step => {
-                        const isCompleted = completedSteps.has(step.id);
-                        return (
-                            <div key={step.id} className="relative">
-                                <div 
-                                    onClick={() => handleToggleStep(step.id)}
-                                    className="flex items-center gap-3 p-2 rounded-md cursor-pointer hover:bg-gray-900/50 transition-colors"
-                                >
-                                    <button
-                                        onClick={(e) => handleInfoClick(e, step.id)}
-                                        className="p-1 text-gray-500 hover:text-brand-400 rounded-full focus:outline-none focus:ring-2 focus:ring-brand-500 z-10 -ml-1"
-                                        aria-label={`More info for ${step.text}`}
-                                    >
-                                        <Icon name="info" className="w-5 h-5" />
-                                    </button>
-                                    <Icon 
-                                        name={isCompleted ? 'check-circle' : 'circle'} 
-                                        className={`w-6 h-6 flex-shrink-0 transition-colors ${isCompleted ? 'text-green-500' : 'text-gray-600'}`}
-                                    />
-                                    <span className={`text-sm transition-colors ${isCompleted ? 'line-through text-gray-500' : 'text-gray-300'}`}>
-                                        {step.text}
-                                    </span>
-                                </div>
-                                {visibleTooltip === step.id && (
-                                    <div className="absolute left-6 top-full -mt-1 w-64 p-3 bg-gray-950 text-xs text-gray-300 rounded-md shadow-lg z-20 border border-gray-700/80">
-                                        {typeof step.details === 'string' ? (
-                                            <>
-                                                <p className="font-semibold mb-1 text-gray-200">Instructions:</p>
-                                                {step.details}
-                                            </>
-                                        ) : (
-                                            step.details
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </ul>
-            </div>
-            <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                <h3 className="text-md font-semibold text-gray-200 mb-3 flex items-center gap-2">
-                   <Icon name="info" className="w-5 h-5 text-brand-400" />
-                   Development Notes
-                </h3>
-                <p className="text-sm text-gray-400 leading-relaxed">
-                    For developers on a host system with the username <code className="text-xs bg-gray-900 p-1 rounded font-mono">tempo</code> or <code className="text-xs bg-gray-900 p-1 rounded font-mono">TEMPO</code>, please ensure your node modules path ("nod models patch") is set to:
-                    <br />
-                    <code className="block mt-2 text-xs bg-gray-900 p-2 rounded font-mono break-all">D:\installer_files\node_modules\OpenExpress</code>
-                </p>
-                 <p className="text-xs text-gray-500 mt-3">
-                    This is a special instruction based on your system configuration.
-                </p>
-            </div>
-        </div>
-    );
-};
-
-const PushContent: React.FC<{pushedFeatures: Set<string>, onToggle: (featureId: string) => void}> = ({ pushedFeatures, onToggle }) => {
-    const developerOnlyFeatures = DEVELOPER_SIDEBAR_ITEMS.filter(item => 
-        !CLIENT_SIDEBAR_ITEMS.some(clientItem => clientItem.id === item.id) && !['push', 'server', 'checklist'].includes(item.id)
-    );
-    
-    return (
-        <div className="p-4 space-y-4">
-            <div className="p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                <h3 className="text-md font-semibold text-gray-200 mb-1">Push Features to Client</h3>
-                <p className="text-sm text-gray-400 mb-4">Select which advanced features should be available in the Client version.</p>
+                <h3 className="text-md font-semibold text-gray-200 mb-3">Server Setup Guide</h3>
                 <div className="space-y-2">
-                    {developerOnlyFeatures.map(feature => (
-                        <div key={feature.id} className="flex items-center justify-between p-2 rounded-md bg-gray-900/50 hover:bg-gray-800/50">
-                            <div className="flex items-center gap-3">
-                                <span className="w-5 h-5 text-gray-400">{feature.icon}</span>
-                                <span className="text-sm font-medium text-gray-300">{feature.label}</span>
-                            </div>
-                            <label htmlFor={`push-${feature.id}`} className="relative inline-flex items-center cursor-pointer">
-                                <input 
-                                    type="checkbox" 
-                                    id={`push-${feature.id}`} 
-                                    className="sr-only peer"
-                                    checked={pushedFeatures.has(feature.id)}
-                                    onChange={() => onToggle(feature.id)}
+                    {setupSteps.map(step => (
+                         <div key={step.id} className="relative">
+                            <div 
+                                className="flex items-center gap-3 cursor-pointer p-2.5 rounded-md hover:bg-gray-900/50"
+                                onClick={() => handleToggleStep(step.id)}
+                            >
+                                <Icon
+                                    name={completedSteps.has(step.id) ? 'check-circle' : 'circle'}
+                                    className={`w-5 h-5 flex-shrink-0 transition-colors ${completedSteps.has(step.id) ? 'text-green-500' : 'text-gray-600'}`}
                                 />
-                                <div className="w-11 h-6 bg-gray-700 rounded-full peer peer-focus:ring-2 peer-focus:ring-brand-500/50 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div>
-                            </label>
+                                <span className={`text-sm font-medium ${completedSteps.has(step.id) ? 'line-through text-gray-500' : 'text-gray-300'}`}>
+                                    {step.text}
+                                </span>
+                                <button
+                                    onClick={(e) => handleInfoClick(e, step.id)}
+                                    className="ml-auto text-gray-500 hover:text-brand-400 p-1 rounded-full"
+                                    aria-label={`More info about ${step.text}`}
+                                >
+                                    <Icon name="info" className="w-4 h-4" />
+                                </button>
+                            </div>
+                            {visibleTooltip === step.id && (
+                                <div className="mt-1 ml-10 p-3 bg-gray-900 rounded-md border border-gray-700 text-sm">
+                                    {typeof step.details === 'string' ? <p className="text-gray-400">{step.details}</p> : step.details}
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>
             </div>
         </div>
     );
-}
-
-const IntegrationsContent: React.FC = () => {
-    const integrations = [
-        { name: 'Google Drive', icon: 'drive', description: 'Access your files' },
-        { name: 'Slack', icon: 'slack', description: 'Share with your team' },
-        { name: 'Figma', icon: 'figma', description: 'Import design files' },
-        { name: 'Dropbox', icon: 'dropbox', description: 'Sync your assets' },
-    ];
-    
-    const [connectionStatus, setConnectionStatus] = useState<{[key: string]: 'disconnected' | 'authenticating' | 'connected'}>({});
-    const [authIntegration, setAuthIntegration] = useState<string | null>(null);
-
-    const handleConnect = (name: string) => {
-        setConnectionStatus(prev => ({ ...prev, [name]: 'authenticating' }));
-        setAuthIntegration(name);
-    };
-
-    const handleDisconnect = (name: string) => {
-        setConnectionStatus(prev => ({ ...prev, [name]: 'disconnected' }));
-    };
-
-    const handleAuthSuccess = (name: string) => {
-        setConnectionStatus(prev => ({...prev, [name]: 'connected' }));
-        setAuthIntegration(null);
-    };
-    
-    const handleAuthCancel = (name: string) => {
-        setConnectionStatus(prev => ({...prev, [name]: 'disconnected' }));
-        setAuthIntegration(null);
-    };
-
-    return (
-        <div className="p-4 space-y-4">
-             {authIntegration && (
-                <AuthModal 
-                    platform={authIntegration}
-                    onClose={() => handleAuthCancel(authIntegration)}
-                    onSuccess={() => handleAuthSuccess(authIntegration)}
-                />
-            )}
-            <input type="search" placeholder="Search integrations..." className="w-full p-2 bg-gray-800 border border-gray-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition" />
-            <div className="grid grid-cols-2 gap-2">
-                {integrations.map(int => {
-                    const status = connectionStatus[int.name] || 'disconnected';
-                    const isAuthenticating = status === 'authenticating';
-                    const isConnected = status === 'connected';
-                    return (
-                        <div key={int.name} className="bg-gray-800/50 p-3 rounded-lg border border-gray-700/50 space-y-2 flex flex-col items-center text-center hover:bg-gray-800 transition-colors">
-                            <Icon name={int.icon} className="w-10 h-10 text-gray-300 mb-2" />
-                            <h4 className="text-sm font-semibold text-gray-100">{int.name}</h4>
-                            <p className="text-xs text-gray-400 flex-grow">{int.description}</p>
-                            <button 
-                                onClick={() => isConnected ? handleDisconnect(int.name) : handleConnect(int.name)}
-                                disabled={isAuthenticating}
-                                className={`w-full mt-2 text-xs font-semibold rounded-md py-1.5 transition-colors flex items-center justify-center gap-1 disabled:cursor-not-allowed ${
-                                    isConnected
-                                    ? 'bg-green-900/60 hover:bg-green-800/70 text-green-300'
-                                    : 'bg-gray-700 hover:bg-gray-600 text-white disabled:bg-gray-600'
-                                }`}
-                            >
-                               {isAuthenticating ? <Icon name="loader" className="w-4 h-4 animate-spin"/> : null}
-                               <span>{isAuthenticating ? 'Connecting...' : isConnected ? 'Disconnect' : 'Connect'}</span>
-                            </button>
-                        </div>
-                    )
-                })}
-            </div>
-        </div>
-    );
 };
-
-// --- API Action Tester Components & Data ---
-
-const apiActionStructure: Record<string, any> = {
-  'Meta': {
-    'Test Scopes': {
-      'Post Video to Page': {
-        id: 'meta-post-video-page',
-        label: 'Post Video to Page',
-        platform: 'Meta',
-        endpoint: '/{page-id}/videos',
-        method: 'POST',
-        description: "Simulates uploading a video to a connected Facebook Page. Requires 'pages_manage_posts' scope.",
-        inputs: [
-          { name: 'pageId', type: 'text', label: 'Page ID', placeholder: 'e.g., 1234567890' },
-          { name: 'video', type: 'file', label: 'Video File' },
-          { name: 'description', type: 'textarea', label: 'Description', placeholder: 'My awesome video!' },
-        ],
-      },
-      'Post Video to Group': {
-        id: 'meta-post-video-group',
-        label: 'Post Video to Group',
-        platform: 'Meta',
-        endpoint: '/{group-id}/videos',
-        method: 'POST',
-        description: "Simulates uploading a video to a connected Facebook Group. Requires 'publish_to_groups' scope.",
-        inputs: [
-          { name: 'groupId', type: 'text', label: 'Group ID', placeholder: 'e.g., 0987654321' },
-          { name: 'video', type: 'file', label: 'Video File' },
-        ],
-      },
-    },
-  },
-  'X (Twitter)': {
-    'Test Scopes': {
-      'Post a Tweet': {
-        id: 'x-post-tweet',
-        label: 'Post a Tweet',
-        platform: 'X (Twitter)',
-        endpoint: '/2/tweets',
-        method: 'POST',
-        description: "Simulates posting a new tweet to the connected account. Requires 'tweet.write' scope.",
-        inputs: [
-          { name: 'text', type: 'textarea', label: 'Tweet Content', placeholder: 'What\'s happening?' },
-        ],
-      },
-    },
-  },
-  'LinkedIn': {
-    'Test Scopes': {
-      'Post to Profile': {
-        id: 'linkedin-post-profile',
-        label: 'Post to Profile',
-        platform: 'LinkedIn',
-        endpoint: '/v2/ugcPosts',
-        method: 'POST',
-        description: "Simulates creating a User Generated Content (UGC) post on the connected user's profile. Requires 'w_member_social' scope.",
-        inputs: [
-          { name: 'text', type: 'textarea', label: 'Post Content', placeholder: 'Share an update...' },
-        ],
-      },
-    },
-  },
-  'TikTok': {
-    'Test Scopes': {
-      'Fetch User Info': {
-        id: 'tiktok-get-user',
-        label: 'Fetch User Info',
-        platform: 'TikTok',
-        endpoint: '/v2/user/info/',
-        method: 'GET',
-        description: "Simulates fetching basic profile information for the connected user. Requires 'user.info.basic' scope.",
-        inputs: [],
-      },
-    },
-  },
-};
-
-const ApiActionTester: React.FC<{
-  action: ApiAction;
-  isConnected: boolean;
-  onClose: () => void;
-}> = ({ action, isConnected, onClose }) => {
-    const [isLoading, setIsLoading] = useState(false);
-    const [response, setResponse] = useState<{ status: 'success' | 'error'; data: any } | null>(null);
-    const [formData, setFormData] = useState<Record<string, any>>({});
-    
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        const { name, value, type } = e.target;
-        if (type === 'file') {
-            const files = (e.target as HTMLInputElement).files;
-            setFormData(prev => ({...prev, [name]: files ? files[0] : null}));
-        } else {
-            setFormData(prev => ({...prev, [name]: value}));
-        }
-    };
-
-    const handleExecute = async () => {
-        setIsLoading(true);
-        setResponse(null);
-        await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
-
-        const isSuccess = Math.random() > 0.2; // 80% success rate
-        if (isSuccess) {
-            let successData: any = { status: 'OK', timestamp: new Date().toISOString() };
-             switch (action.id) {
-                case 'x-post-tweet':
-                    successData = { data: { id: `17${Math.floor(Math.random() * 9E16)}`, text: formData.text } }; break;
-                case 'meta-post-video-page':
-                    successData = { id: `${formData.pageId}_10${Math.floor(Math.random() * 9E14)}`, post_id: `${formData.pageId}_10${Math.floor(Math.random() * 9E14)}` }; break;
-                case 'tiktok-get-user':
-                     successData = { data: { user: { open_id: 'a1b2c3d4...', display_name: 'Test User', avatar_url: 'https://example.com/avatar.png'}}, error: { code: 'ok', message: '', log_id: '...'} }; break;
-            }
-            setResponse({ status: 'success', data: successData });
-        } else {
-            setResponse({ status: 'error', data: { error: { message: 'Invalid credentials or permissions.', type: 'OAuthException', code: 190, fbtrace_id: `A${Math.random().toString(36).substring(2, 12)}` }} });
-        }
-        setIsLoading(false);
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in" aria-modal="true" role="dialog">
-            <div className="bg-gray-800 p-6 rounded-lg shadow-xl border border-gray-700 w-full max-w-2xl max-h-[90vh] flex flex-col">
-                 <header className="flex items-center justify-between pb-4 border-b border-gray-700/50 mb-4">
-                    <h3 className="text-lg font-semibold text-white flex items-center gap-3">
-                        <Icon name={action.method === 'GET' ? 'eye' : 'rocket'} className="w-5 h-5 text-brand-400" />
-                        Test Action: {action.label}
-                    </h3>
-                    <button onClick={onClose} className="p-1.5 text-gray-500 hover:text-white rounded-full hover:bg-gray-700 transition-colors">
-                        <Icon name="x" className="w-5 h-5" />
-                    </button>
-                </header>
-                <div className="flex-grow overflow-y-auto pr-2 -mr-2 space-y-4">
-                    <p className="text-sm text-gray-400">{action.description}</p>
-
-                    {!isConnected && (
-                         <div className="p-3 bg-yellow-900/50 text-yellow-300 text-sm rounded-md border border-yellow-700/50 flex items-start gap-3">
-                           <Icon name="info" className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                           <div>
-                            <span className="font-semibold">Account Not Connected:</span> Please connect your {action.platform} account in the "Connected Accounts" section before running this action.
-                           </div>
-                        </div>
-                    )}
-                    
-                    <div className="space-y-4">
-                        {action.inputs.map(input => (
-                            <div key={input.name}>
-                                <label htmlFor={input.name} className="block text-sm font-medium text-gray-300 mb-1">{input.label}</label>
-                                {input.type === 'textarea' ? (
-                                    <textarea id={input.name} name={input.name} rows={3} onChange={handleInputChange} disabled={!isConnected} className="w-full p-2 bg-gray-900/50 border border-gray-600 rounded-md focus:ring-2 focus:ring-brand-500 disabled:opacity-50" placeholder={input.placeholder}></textarea>
-                                ) : input.type === 'file' ? (
-                                    <input type="file" id={input.name} name={input.name} onChange={handleInputChange} disabled={!isConnected} className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-600/50 file:text-brand-300 hover:file:bg-brand-600/70 disabled:opacity-50" />
-                                ) : (
-                                    <input type="text" id={input.name} name={input.name} onChange={handleInputChange} disabled={!isConnected} className="w-full p-2 bg-gray-900/50 border border-gray-600 rounded-md focus:ring-2 focus:ring-brand-500 disabled:opacity-50" placeholder={input.placeholder} />
-                                )}
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="p-3 bg-gray-900/50 rounded-md font-mono text-sm">
-                        <span className={`font-bold ${action.method === 'POST' ? 'text-yellow-400' : 'text-green-400'}`}>{action.method}</span>
-                        <span className="text-gray-400"> {action.endpoint}</span>
-                    </div>
-
-                    {response && (
-                        <div>
-                             <h4 className={`text-sm font-semibold mb-2 ${response.status === 'success' ? 'text-green-400' : 'text-red-400'}`}>
-                                {response.status === 'success' ? 'Success Response' : 'Error Response'}
-                             </h4>
-                             <pre className="p-3 bg-gray-900/50 rounded-md text-xs text-gray-300 max-h-48 overflow-auto whitespace-pre-wrap break-all">
-                                {JSON.stringify(response.data, null, 2)}
-                             </pre>
-                        </div>
-                    )}
-                </div>
-                <footer className="pt-4 mt-auto">
-                    <button 
-                        onClick={handleExecute} 
-                        disabled={!isConnected || isLoading}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 rounded-lg transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed"
-                    >
-                         {isLoading ? <Icon name="loader" className="w-5 h-5 animate-spin" /> : <Icon name="rocket" className="w-5 h-5" />}
-                         <span>{isLoading ? 'Executing...' : 'Execute Action'}</span>
-                    </button>
-                </footer>
-            </div>
-        </div>
-    );
-};
-
-
-const ActionTree: React.FC<{
-    data: any;
-    onSelect: (action: ApiAction) => void;
-    level?: number;
-}> = ({ data, onSelect, level = 0 }) => {
-    return (
-        <ul className={level > 0 ? 'pl-4 border-l border-gray-700/50' : ''}>
-            {Object.entries(data).map(([key, value]) => (
-                <li key={key} className="my-1">
-                    {value && typeof value === 'object' && (value as ApiAction).id ? (
-                        <button
-                            onClick={() => onSelect(value as ApiAction)}
-                            className="w-full text-left text-sm px-2 py-1.5 rounded-md transition-colors text-gray-300 hover:bg-brand-500/10 hover:text-brand-300"
-                        >
-                           - {key}
-                        </button>
-                    ) : (
-                        <div className="pt-2">
-                            <span className={`font-semibold text-gray-200 text-sm`}>{key}</span>
-                            <ActionTree data={value} onSelect={onSelect} level={level + 1} />
-                        </div>
-                    )}
-                </li>
-            ))}
-        </ul>
-    );
-};
-
-
-const BrandingContent: React.FC = () => {
-    const socialAccounts = [
-        { name: 'Meta', route: 'facebook', icon: 'meta', description: 'Facebook & Instagram', color: 'text-blue-500' },
-        { name: 'X (Twitter)', route: 'twitter', icon: 'x', description: 'Post real-time updates.', color: 'text-gray-400' },
-        { name: 'LinkedIn', route: 'linkedin', icon: 'linkedin', description: 'For professional content.', color: 'text-sky-600' },
-        { name: 'TikTok', route: 'tiktok', icon: 'tiktok', description: 'Create engaging short videos.', color: 'text-teal-400' },
-    ];
-    
-    const brandColors = [
-        { name: 'Primary', hex: '#0ea5e9' },
-        { name: 'Secondary', hex: '#38bdf8' },
-        { name: 'Accent', hex: '#7dd3fc' },
-        { name: 'Neutral', hex: '#e5e7eb' },
-    ];
-
-    const brandFonts = [
-        { name: 'Heading', family: 'Inter' },
-        { name: 'Body', family: 'Roboto' },
-    ];
-
-    const [connectionStatus, setConnectionStatus] = useState<{[key: string]: 'disconnected' | 'authenticating' | 'connected'}>({});
-    const [activeAction, setActiveAction] = useState<ApiAction | null>(null);
-
-    const handleConnect = (accountRoute: string) => {
-        const authUrl = `http://localhost:3001/auth/${accountRoute}`;
-        const width = 600, height = 700;
-        const left = (window.screen.width / 2) - (width / 2);
-        const top = (window.screen.height / 2) - (height / 2);
-
-        window.open(
-            authUrl,
-            'AuthPopup',
-            `width=${width},height=${height},top=${top},left=${left}`
-        );
-    };
-
-    const handleDisconnect = useCallback((accountName: string) => {
-        setConnectionStatus(prev => ({ ...prev, [accountName]: 'disconnected' }));
-    }, []);
-
-    const handleAuthSuccess = useCallback((platform: string) => {
-        const account = socialAccounts.find(acc => acc.route === platform);
-        if (account) {
-            setConnectionStatus(prev => ({...prev, [account.name]: 'connected' }));
-        }
-    }, [socialAccounts]);
-
-    const handleAuthCancel = useCallback((platform: string) => {
-        const account = socialAccounts.find(acc => acc.route === platform);
-        if (account) {
-            setConnectionStatus(prev => ({...prev, [account.name]: 'disconnected' }));
-        }
-    }, [socialAccounts]);
-
-    useEffect(() => {
-        const handleAuthMessage = (event: MessageEvent) => {
-            // IMPORTANT: In a production app, you should verify the origin of the message
-            // if (event.origin !== 'http://localhost:3001') return;
-
-            const { type, platform } = event.data;
-            if (type === 'auth-success') {
-                handleAuthSuccess(platform);
-            } else if (type === 'auth-failure') {
-                handleAuthCancel(platform);
-            }
-        };
-
-        window.addEventListener('message', handleAuthMessage);
-
-        return () => {
-            window.removeEventListener('message', handleAuthMessage);
-        };
-    }, [handleAuthSuccess, handleAuthCancel]);
-
-
-    return (
-        <div className="p-4 space-y-8">
-            {activeAction && (
-                <ApiActionTester 
-                    action={activeAction}
-                    isConnected={(connectionStatus[activeAction.platform] || 'disconnected') === 'connected'}
-                    onClose={() => setActiveAction(null)}
-                />
-            )}
-            {/* Brand Assets Section */}
-            <div>
-                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 px-1">Brand Assets</h3>
-                <div className="space-y-4">
-                    {/* Logos */}
-                    <div className="p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                        <h4 className="text-md font-semibold text-gray-200 mb-2">Logos</h4>
-                        <div className="grid grid-cols-4 gap-2 mb-3">
-                            <div className="aspect-square bg-gray-700 rounded-md flex items-center justify-center"><Icon name="image" className="w-8 h-8 text-gray-500" /></div>
-                            <div className="aspect-square bg-gray-700 rounded-md flex items-center justify-center"><Icon name="image" className="w-8 h-8 text-gray-500" /></div>
-                        </div>
-                        <button className="w-full flex items-center justify-center gap-2 text-sm font-semibold bg-gray-700 hover:bg-gray-600 text-white rounded-md py-2 transition-colors">
-                            <Icon name="upload" className="w-4 h-4" /> Upload Logo
-                        </button>
-                    </div>
-
-                    {/* Colors */}
-                    <div className="p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                         <h4 className="text-md font-semibold text-gray-200 mb-2">Colors</h4>
-                         <div className="space-y-2 mb-3">
-                             {brandColors.map(color => (
-                                 <div key={color.name} className="flex items-center justify-between text-sm">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-5 h-5 rounded-full border-2 border-gray-600" style={{backgroundColor: color.hex}}></div>
-                                        <span>{color.name}</span>
-                                    </div>
-                                    <span className="font-mono text-xs text-gray-400">{color.hex}</span>
-                                 </div>
-                             ))}
-                         </div>
-                         <button className="w-full flex items-center justify-center gap-2 text-sm font-semibold bg-gray-700 hover:bg-gray-600 text-white rounded-md py-2 transition-colors">
-                            <Icon name="plus" className="w-4 h-4" /> Add Color
-                        </button>
-                    </div>
-                     {/* Fonts */}
-                    <div className="p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                         <h4 className="text-md font-semibold text-gray-200 mb-2">Fonts</h4>
-                         <div className="space-y-2 mb-3">
-                             {brandFonts.map(font => (
-                                 <div key={font.name} className="flex items-center justify-between text-sm">
-                                    <span>{font.name}</span>
-                                    <span className="text-gray-400">{font.family}</span>
-                                 </div>
-                             ))}
-                         </div>
-                         <button className="w-full flex items-center justify-center gap-2 text-sm font-semibold bg-gray-700 hover:bg-gray-600 text-white rounded-md py-2 transition-colors">
-                            <Icon name="plus" className="w-4 h-4" /> Add Font
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Connected Accounts Section */}
-            <div>
-                 <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 px-1">Connected Accounts</h3>
-                 <div className="space-y-3">
-                    {socialAccounts.map(account => {
-                        const status = connectionStatus[account.name] || 'disconnected';
-                        const isConnected = status === 'connected';
-                        return (
-                            <div key={account.name} className="p-3 bg-gray-800/50 rounded-lg border border-gray-700/50 hover:bg-gray-800 transition-colors">
-                                <div className="flex items-center gap-4">
-                                    <Icon name={account.icon} className={`w-8 h-8 ${account.color}`} />
-                                    <div>
-                                        <h4 className="font-semibold text-gray-100">{account.name}</h4>
-                                        <p className="text-xs text-gray-400">{account.description}</p>
-                                    </div>
-                                </div>
-                                <div className="mt-3 pt-3 border-t border-gray-700/50">
-                                    {isConnected ? (
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                                                <p className="text-xs text-green-400 font-semibold">Connected</p>
-                                            </div>
-                                            <button
-                                                onClick={() => handleDisconnect(account.name)}
-                                                className="text-xs font-semibold bg-red-900/60 hover:bg-red-800/70 text-red-300 rounded-md py-1 px-3 transition-colors"
-                                            >
-                                                Disconnect
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <button
-                                            onClick={() => handleConnect(account.route)}
-                                            className="w-full flex items-center justify-center gap-2 text-xs font-semibold rounded-md py-1.5 px-4 transition-colors disabled:cursor-not-allowed bg-gray-700 hover:bg-gray-600 text-white disabled:bg-gray-600 disabled:text-gray-400"
-                                        >
-                                            <span>{'Connect'}</span>
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        )
-                    })}
-                 </div>
-            </div>
-            {/* API Action Center Section */}
-            <div>
-                 <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 px-1">API Action Center</h3>
-                 <div className="p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                    <ActionTree data={apiActionStructure} onSelect={setActiveAction} />
-                 </div>
-            </div>
-        </div>
-    );
-};
-
-const PlaceholderContent: React.FC<{itemName: string}> = ({itemName}) => (
-    <div className="p-4 text-center text-gray-400 h-full flex flex-col items-center justify-center gap-4">
-        <div className="w-16 h-16 text-gray-600">
-            <Icon name="puzzle" />
-        </div>
-        <h3 className="text-lg font-semibold text-gray-300">{itemName}</h3>
-        <p className="text-sm">This feature is currently under development.</p>
-        <div className="mt-2 px-4 py-2 bg-yellow-900/50 border border-yellow-700/50 rounded-lg text-yellow-300 text-xs font-medium">
-            Coming Soon!
-        </div>
-    </div>
-);
 
 const ContentPanel: React.FC<ContentPanelProps> = ({ activeItem, onClose, version, pushedFeatures, onTogglePushFeature }) => {
-    const allItems = [...DEVELOPER_SIDEBAR_ITEMS, ...CLIENT_SIDEBAR_ITEMS];
-    const item = allItems.find(i => i.id === activeItem);
+  const contentMap: { [key: string]: React.ReactNode } = {
+    templates: <TemplatesContent />,
+    text: <TextContent />,
+    images: <ImagesContent />,
+    shapes: <ShapesContent />,
+    ai: <ApiActionCenter />,
+    branding: <BrandingContent />,
+    collaboration: <CollaborationContent />,
+    'version-control': <VersionControlContent />,
+    integrations: <IntegrationsContent />,
+    push: <PushContent pushedFeatures={pushedFeatures} onTogglePushFeature={onTogglePushFeature} />,
+    server: <ServerContent />,
+    checklist: <ChecklistContent />,
+    planner: <ContentPlanner />,
+  };
 
-    const renderContent = () => {
-        switch(activeItem) {
-            case 'integrations':
-                return <IntegrationsContent />;
-            case 'branding':
-                return <BrandingContent />;
-            case 'push':
-                return <PushContent pushedFeatures={pushedFeatures} onToggle={onTogglePushFeature} />;
-            case 'server':
-                return <ServerContent />;
-            case 'checklist':
-                return <ChecklistContent />;
-            case 'planner':
-                return <ContentPlanner version={version} />;
-            default:
-                return <PlaceholderContent itemName={item?.label || 'Item'} />;
-        }
-    }
+  const currentItem = [...DEVELOPER_SIDEBAR_ITEMS, ...CLIENT_SIDEBAR_ITEMS].find(
+    (item) => item.id === activeItem
+  );
 
-    if (!item) return null;
+  const renderContent = () => {
+    return contentMap[activeItem] || <div className="p-4">Select an item from the sidebar.</div>;
+  };
 
-    return (
-        <aside className="w-80 bg-gray-900/70 backdrop-blur-sm border-r border-gray-700/50 flex flex-col animate-slide-in flex-shrink-0">
-            <header className="p-3 flex items-center justify-between border-b border-gray-700/50 h-16 flex-shrink-0">
-                <h2 className="text-lg font-semibold flex items-center gap-3 text-gray-200">
-                    <span className="text-brand-400 w-6 h-6">{item.icon}</span>
-                    <span>{item.label}</span>
-                </h2>
-                <button onClick={onClose} className="p-2 text-gray-400 hover:text-white rounded-md hover:bg-gray-700/50 transition-colors" aria-label="Close panel">
-                    <Icon name="x" className="w-5 h-5"/>
-                </button>
-            </header>
-            <div className="flex-1 overflow-y-auto">
-                {renderContent()}
-            </div>
-        </aside>
-    );
+  return (
+    <aside className="w-96 bg-gray-900 border-l border-gray-700/50 flex flex-col flex-shrink-0 animate-slide-in">
+      <header className="flex items-center justify-between p-4 border-b border-gray-700/50 h-16 flex-shrink-0">
+        {currentItem && (
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 text-brand-400">{currentItem.icon}</div>
+            <h2 className="text-lg font-semibold text-white">{currentItem.label}</h2>
+          </div>
+        )}
+        <button onClick={onClose} className="p-2 text-gray-500 rounded-full hover:bg-gray-700/50 hover:text-white transition-colors">
+          <Icon name="x" className="w-5 h-5" />
+        </button>
+      </header>
+      <div className="flex-grow overflow-y-auto">
+        {renderContent()}
+      </div>
+    </aside>
+  );
 };
 
 export default ContentPanel;
