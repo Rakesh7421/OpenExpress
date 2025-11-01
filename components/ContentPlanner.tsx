@@ -29,16 +29,56 @@ const ContentPlanner: React.FC = () => {
   
   const [postContent, setPostContent] = useState('');
   const [isScheduling, setIsScheduling] = useState(false);
-  const [isScheduled, setIsScheduled] = useState(false);
+  const [scheduleStatus, setScheduleStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   
-  const handleSchedule = () => {
+  const handleSchedule = async () => {
       setIsScheduling(true);
-      setIsScheduled(false);
-      setTimeout(() => {
+      setScheduleStatus(null);
+
+      // We can use any valid JWT to authenticate with the Python server,
+      // as long as the secret is shared. We'll try to find one.
+      const platformIds = ['meta', 'x', 'linkedin', 'tiktok'];
+      const token = platformIds.reduce<string | null>((foundToken, id) => {
+        if (foundToken) return foundToken;
+        return localStorage.getItem(`${id}_jwt`);
+      }, null);
+
+      if (!token) {
+        setScheduleStatus({ type: 'error', message: 'You must connect at least one account in Branding to schedule posts.'});
+        setIsScheduling(false);
+        return;
+      }
+
+      try {
+        const response = await fetch('http://localhost:8080/api/schedule-post', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                brand,
+                platform,
+                content: postContent,
+                scheduleTime: new Date().toISOString()
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to schedule post.');
+        }
+
+        setScheduleStatus({ type: 'success', message: data.message });
+        setPostContent(''); // Clear content on success
+      } catch (error) {
+          const message = error instanceof Error ? error.message : 'An unknown error occurred.';
+          setScheduleStatus({ type: 'error', message });
+      } finally {
           setIsScheduling(false);
-          setIsScheduled(true);
-          setTimeout(() => setIsScheduled(false), 3000); // Hide message after 3s
-      }, 1500);
+          setTimeout(() => setScheduleStatus(null), 4000); // Hide message after 4s
+      }
   }
 
   const selectionMade = useMemo(() => {
@@ -88,9 +128,11 @@ const ContentPlanner: React.FC = () => {
       
       {/* Shared Footer/Action Area */}
       <div className="p-4 border-t border-gray-700/50 mt-auto flex-shrink-0">
-         {isScheduled && (
-            <div className="mb-3 p-2 text-center text-sm bg-green-900/50 text-green-300 rounded-md">
-                Post scheduled successfully!
+         {scheduleStatus && (
+            <div className={`mb-3 p-2 text-center text-sm rounded-md ${
+                scheduleStatus.type === 'success' ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'
+            }`}>
+                {scheduleStatus.message}
             </div>
         )}
         <button

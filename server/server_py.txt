@@ -1,5 +1,7 @@
 import os
 import time
+from functools import wraps
+import jwt
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
@@ -10,24 +12,49 @@ app = Flask(__name__)
 # Enable Cross-Origin Resource Sharing (CORS)
 CORS(app)
 
-# Routes
+# Load JWT secret from environment variables.
+JWT_SECRET = os.environ.get('JWT_SECRET', 'your-super-secret-jwt-key-here')
+if JWT_SECRET == 'your-super-secret-jwt-key-here':
+    print("WARNING: Using default JWT_SECRET. Set a real secret in your environment for production.")
+
+
+# --- Authentication Decorator ---
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        if 'authorization' in request.headers:
+            # Extract token from "Bearer <token>"
+            token = request.headers['authorization'].split(' ')[1]
+        
+        if not token:
+            return jsonify({'error': 'Token is missing!'}), 401
+        
+        try:
+            # Decode the token using the secret key
+            data = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+            current_user = data['id']
+        except jwt.ExpiredSignatureError:
+            return jsonify({'error': 'Token has expired!'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'error': 'Token is invalid!'}), 401
+        
+        # Pass the current user to the decorated function
+        return f(current_user, *args, **kwargs)
+    return decorated
+
+
+# --- Routes ---
 @app.route('/')
 def index():
   """Root endpoint to check if the server is running."""
   return jsonify(message='OpenExpress Python server is running!')
 
 @app.route('/api/save-design', methods=['POST'])
-def save_design():
+@token_required
+def save_design(current_user):
   """Endpoint to receive and process design data from the frontend."""
-  print('Received design data to save:', request.json)
-  
-  # Example of how you might use a JWT secret in a real app
-  auth_token = request.headers.get('Authorization')
-  if not auth_token or not auth_token.startswith('Bearer '):
-    # For demo purposes, we'll log and proceed.
-    print('No auth token present, proceeding for demo.')
-    # To enforce auth, you would uncomment the following line:
-    # return jsonify(error='Authorization token is required.'), 401
+  print(f'Received design data from user {current_user} to save:', request.json)
 
   if not request.json or 'title' not in request.json:
     return jsonify(error='Design title is required.'), 400
@@ -38,6 +65,22 @@ def save_design():
     designId=f'dsn_{int(time.time())}',
     dataReceived=request.json 
   ), 201
+
+@app.route('/api/schedule-post', methods=['POST'])
+@token_required
+def schedule_post(current_user):
+    """Endpoint to schedule a content post."""
+    data = request.get_json()
+    print(f"Received post schedule request from user {current_user}:", data)
+
+    if not all(key in data for key in ['brand', 'platform', 'content']):
+        return jsonify(error='Missing required fields for scheduling.'), 400
+    
+    # In a real app, this would be saved to a database or a job queue (e.g., Celery, RQ).
+    print(f"Scheduling post for {data['brand']} on {data['platform']}.")
+
+    return jsonify(message=f"Post for {data['brand']} on {data['platform']} has been scheduled!"), 201
+
 
 @app.route('/api/image-upload', methods=['POST'])
 def upload_image():

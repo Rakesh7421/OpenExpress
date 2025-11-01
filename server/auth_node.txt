@@ -64,19 +64,38 @@ const verifyCallback = (platform) => async (accessToken, refreshToken, profile, 
     }
 };
 
-const sendAuthResponse = (res, type, platform) => {
-  const message = type === 'success' ? 'Authentication Successful!' : 'Authentication Failed';
-  const status = type === 'success' ? 200 : 401;
+const generateAndSendToken = (req, res, platform) => {
+    const userPayload = { 
+        id: req.user.id, 
+        displayName: req.user.displayName,
+        provider: req.user.provider
+    };
+    
+    const token = jwt.sign(userPayload, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-  res.status(status).send(`
+    const message = 'Authentication Successful!';
+    res.status(200).send(`
       <script>
-        window.opener.postMessage({ type: 'auth-${type}', platform: '${platform}' }, '*');
+        window.opener.postMessage({ type: 'auth-success', platform: '${platform}', token: '${token}' }, '*');
         window.close();
       </script>
       <h1>${message}</h1>
       <p>You can close this window.</p>
     `);
 };
+
+const sendAuthFailure = (res, platform) => {
+    const message = 'Authentication Failed';
+    res.status(401).send(`
+        <script>
+            window.opener.postMessage({ type: 'auth-failure', platform: '${platform}' }, '*');
+            window.close();
+        </script>
+        <h1>${message}</h1>
+        <p>Please try again. You can close this window.</p>
+    `);
+}
+
 
 // --- Configuration & Middleware ---
 app.use(cors({ origin: '*', credentials: true }));
@@ -138,34 +157,34 @@ app.get('/', (req, res) => res.send('OpenExpress Node.js Authentication Server i
 // Facebook
 app.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email'] }));
 app.get('/auth/facebook/callback',
-  passport.authenticate('facebook', { failureRedirect: '/auth/failed/facebook' }),
-  (req, res) => sendAuthResponse(res, 'success', 'facebook')
+  passport.authenticate('facebook', { failureRedirect: '/auth/failed/facebook', session: false }),
+  (req, res) => generateAndSendToken(req, res, 'meta')
 );
-app.get('/auth/failed/facebook', (req, res) => sendAuthResponse(res, 'failure', 'facebook'));
+app.get('/auth/failed/facebook', (req, res) => sendAuthFailure(res, 'meta'));
 
 // X (Twitter)
 app.get('/auth/twitter', passport.authenticate('twitter'));
 app.get('/auth/twitter/callback',
-  passport.authenticate('twitter', { failureRedirect: '/auth/failed/twitter' }),
-  (req, res) => sendAuthResponse(res, 'success', 'twitter')
+  passport.authenticate('twitter', { failureRedirect: '/auth/failed/twitter', session: false }),
+  (req, res) => generateAndSendToken(req, res, 'x')
 );
-app.get('/auth/failed/twitter', (req, res) => sendAuthResponse(res, 'failure', 'twitter'));
+app.get('/auth/failed/twitter', (req, res) => sendAuthFailure(res, 'x'));
 
 // LinkedIn
 app.get('/auth/linkedin', passport.authenticate('linkedin', { state: 'SOME_STATE' }));
 app.get('/auth/linkedin/callback',
-  passport.authenticate('linkedin', { failureRedirect: '/auth/failed/linkedin' }),
-  (req, res) => sendAuthResponse(res, 'success', 'linkedin')
+  passport.authenticate('linkedin', { failureRedirect: '/auth/failed/linkedin', session: false }),
+  (req, res) => generateAndSendToken(req, res, 'linkedin')
 );
-app.get('/auth/failed/linkedin', (req, res) => sendAuthResponse(res, 'failure', 'linkedin'));
+app.get('/auth/failed/linkedin', (req, res) => sendAuthFailure(res, 'linkedin'));
 
 // TikTok
 app.get('/auth/tiktok', passport.authenticate('tiktok'));
 app.get('/auth/tiktok/callback',
-  passport.authenticate('tiktok', { failureRedirect: '/auth/failed/tiktok' }),
-  (req, res) => sendAuthResponse(res, 'success', 'tiktok')
+  passport.authenticate('tiktok', { failureRedirect: '/auth/failed/tiktok', session: false }),
+  (req, res) => generateAndSendToken(req, res, 'tiktok')
 );
-app.get('/auth/failed/tiktok', (req, res) => sendAuthResponse(res, 'failure', 'tiktok'));
+app.get('/auth/failed/tiktok', (req, res) => sendAuthFailure(res, 'tiktok'));
 
 
 // --- Secure API Routes ---
@@ -190,5 +209,8 @@ app.listen(PORT, () => {
   console.log(`Node.js auth server listening on http://localhost:${PORT}`);
   if (!process.env.SESSION_SECRET) {
       console.warn("WARNING: SESSION_SECRET is not set. Please set it in your .env file for security.");
+  }
+  if (!process.env.JWT_SECRET) {
+      console.warn("WARNING: JWT_SECRET is not set. Please set it in your .env file for security.");
   }
 });

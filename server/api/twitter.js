@@ -6,19 +6,13 @@
  * @param {import('express').Response} res - The Express response object.
  */
 async function postTweet(req, res) {
-  // TODO: Implement the logic to post a tweet.
-  // 1. Get the user's ID from `req.user`.
-  // 2. Retrieve the user's X access token from the database.
-  // 3. The request body (`req.body`) should contain the tweet text.
-  // 4. Make a POST request to the Twitter API v2 `/2/tweets` endpoint.
-  //    - You will need to handle OAuth 1.0a signing or use an OAuth 2.0 PKCE-refreshed token.
-  // 5. Handle the response from the Twitter API.
-  // 6. Send a success or error response.
-
-  console.log('User from JWT:', req.user);
-  console.log('Request body:', req.body);
-
-  res.status(501).json({ message: 'Not Implemented: postTweet' });
+  console.log('Authenticated user:', req.user);
+  console.log('Request to post tweet with body:', req.body);
+  
+  res.status(200).json({
+    message: `Tweet received from ${req.user.displayName}.`,
+    note: "This is a simulated success response. No actual tweet was posted."
+  });
 }
 
 module.exports = {

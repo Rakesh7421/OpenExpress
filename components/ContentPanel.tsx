@@ -164,13 +164,42 @@ const PlatformConnectionConfig: React.FC<{
 
 const BrandingContent: React.FC = () => {
     const [connectedAccounts, setConnectedAccounts] = useState<Set<string>>(new Set());
-    const [authPlatform, setAuthPlatform] = useState<string | null>(null);
     const [configPlatform, setConfigPlatform] = useState<string | null>(null);
 
+    // This effect handles the OAuth popup callback
+    useEffect(() => {
+        const handleAuthMessage = (event: MessageEvent) => {
+            // IMPORTANT: Check the origin for security in a real production app
+            // if (event.origin !== 'http://localhost:3001') return;
 
-    const handleAuthSuccess = (platform: string) => {
-        setConnectedAccounts(prev => new Set(prev).add(platform));
-        setAuthPlatform(null);
+            const { type, platform, token } = event.data;
+            if (type === 'auth-success' && platform && token) {
+                console.log(`Auth success for ${platform}`);
+                setConnectedAccounts(prev => new Set(prev).add(platform));
+                // Store the JWT for API calls
+                localStorage.setItem(`${platform}_jwt`, token);
+            } else if (type === 'auth-failure') {
+                console.error(`Auth failed for ${platform}`);
+                alert(`Authentication with ${platform} failed. Please check the console on the auth server.`);
+            }
+        };
+
+        window.addEventListener('message', handleAuthMessage);
+        return () => window.removeEventListener('message', handleAuthMessage);
+    }, []);
+
+    const handleConnect = (platformId: string) => {
+        const authUrl = `http://localhost:3001/auth/${platformId}`;
+        window.open(authUrl, '_blank', 'width=500,height=600');
+    };
+
+    const handleDisconnect = (platformId: string) => {
+        setConnectedAccounts(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(platformId);
+            return newSet;
+        });
+        localStorage.removeItem(`${platformId}_jwt`);
     };
 
     if (configPlatform) {
@@ -178,15 +207,14 @@ const BrandingContent: React.FC = () => {
     }
 
     const socialAccounts = [
-        { id: 'meta', name: 'Meta', icon: 'meta' },
-        { id: 'x', name: 'X (Twitter)', icon: 'x' },
-        { id: 'linkedin', name: 'LinkedIn', icon: 'linkedin' },
-        { id: 'tiktok', name: 'TikTok', icon: 'tiktok' },
+        { id: 'meta', name: 'Meta', icon: 'meta', authId: 'facebook' },
+        { id: 'x', name: 'X (Twitter)', icon: 'x', authId: 'twitter' },
+        { id: 'linkedin', name: 'LinkedIn', icon: 'linkedin', authId: 'linkedin' },
+        { id: 'tiktok', name: 'TikTok', icon: 'tiktok', authId: 'tiktok' },
     ];
 
     return (
         <div className="p-4 space-y-6">
-             {authPlatform && <AuthModal platform={authPlatform} onClose={() => setAuthPlatform(null)} onSuccess={() => handleAuthSuccess(authPlatform)} />}
             <div>
                 <h3 className="text-md font-semibold text-gray-200">Brand Kit</h3>
                 <div className="mt-2 p-4 bg-gray-800/50 rounded-lg border border-gray-700/50 flex items-center gap-4">
@@ -203,7 +231,7 @@ const BrandingContent: React.FC = () => {
                 <h3 className="text-md font-semibold text-gray-200">Platform Connections</h3>
                 <div className="mt-2 space-y-2">
                     {socialAccounts.map(account => {
-                        const isConnected = connectedAccounts.has(account.name);
+                        const isConnected = connectedAccounts.has(account.id);
                         return (
                             <div key={account.id} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
                                 <div className="flex items-center gap-3">
@@ -218,7 +246,7 @@ const BrandingContent: React.FC = () => {
                                         Configure
                                     </button>
                                     <button 
-                                        onClick={() => isConnected ? setConnectedAccounts(prev => { const newSet = new Set(prev); newSet.delete(account.name); return newSet; }) : setAuthPlatform(account.name)}
+                                        onClick={() => isConnected ? handleDisconnect(account.id) : handleConnect(account.authId)}
                                         className={`text-xs font-semibold rounded-md py-1 px-3 transition-colors ${isConnected ? 'bg-red-900/60 hover:bg-red-800/70 text-red-300' : 'bg-brand-600 hover:bg-brand-500 text-white'}`}
                                     >
                                         {isConnected ? 'Disconnect' : 'Connect'}
@@ -296,22 +324,49 @@ const ApiActionTester: React.FC<{ action: ApiAction; onClose: () => void }> = ({
         setResponse(null);
         setError(null);
         
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        const platformId = action.platform === 'Meta' ? 'meta' : action.platform === 'X (Twitter)' ? 'x' : action.platform.toLowerCase();
+        const token = localStorage.getItem(`${platformId}_jwt`);
+
+        if (!token) {
+            setError(`Not connected to ${action.platform}. Please connect in the Branding panel.`);
+            setIsLoading(false);
+            return;
+        }
+
+        const headers: HeadersInit = {
+            'Authorization': `Bearer ${token}`
+        };
+
+        let body: BodyInit | undefined;
+
+        const hasFileInput = action.inputs.some(input => input.type === 'file');
+
+        if (hasFileInput) {
+            const formData = new FormData();
+            for (const key in formState) {
+                formData.append(key, formState[key]);
+            }
+            body = formData;
+        } else if (action.method === 'POST') {
+            body = JSON.stringify(formState);
+            headers['Content-Type'] = 'application/json';
+        }
 
         try {
-            // In a real app, this would be a fetch call to the Node.js server
-            // For now, we simulate success or failure
-            if (Math.random() > 0.1) { // 90% success rate
-                 setResponse(JSON.stringify({
-                    success: true,
-                    message: `${action.label} executed successfully.`,
-                    timestamp: new Date().toISOString(),
-                    data: formState,
-                }, null, 2));
-            } else {
-                throw new Error("Simulated API Error: The server returned a 500 status.");
+            const res = await fetch(`http://localhost:3001${action.endpoint}`, {
+                method: action.method,
+                headers,
+                body,
+            });
+
+            const resData = await res.json();
+            
+            if (!res.ok) {
+                throw new Error(resData.error || `Request failed with status ${res.status}`);
             }
+
+            setResponse(JSON.stringify(resData, null, 2));
+
         } catch (e) {
             const message = e instanceof Error ? e.message : 'An unknown error occurred.';
             setError(message);
@@ -455,69 +510,6 @@ const PushContent: React.FC<{
                 ))}
             </div>
         </div>
-    );
-};
-
-// Authentication Modal Component (reusable for integrations)
-const AuthModal: React.FC<{
-  platform: string;
-  onClose: () => void;
-  onSuccess: () => void;
-}> = ({ platform, onClose, onSuccess }) => {
-    const [authStep, setAuthStep] = useState<'redirecting' | 'success'>('redirecting');
-    const [countdown, setCountdown] = useState(3);
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setAuthStep('success');
-        }, 2500); // Simulate API call and redirect
-        return () => clearTimeout(timer);
-    }, []);
-
-    useEffect(() => {
-        if (authStep === 'success') {
-            const countdownTimer = setInterval(() => {
-                setCountdown(prev => {
-                    if (prev <= 1) {
-                        clearInterval(countdownTimer);
-                        onSuccess();
-                        return 0;
-                    }
-                    return prev - 1;
-                });
-            }, 1000);
-            return () => clearInterval(countdownTimer);
-        }
-    }, [authStep, onSuccess]);
-
-
-    return (
-      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in">
-        <div className="bg-gray-800 p-6 rounded-lg shadow-xl border border-gray-700 w-96 relative">
-          <h3 className="text-lg font-semibold text-white mb-6 text-center">Authenticating with {platform}</h3>
-          
-          {authStep === 'redirecting' && (
-            <div className="flex flex-col items-center gap-4 text-gray-300">
-              <Icon name="loader" className="w-8 h-8 animate-spin text-brand-400" />
-              <p className="text-sm">Simulating redirection for authorization...</p>
-            </div>
-          )}
-          
-          {authStep === 'success' && (
-            <div className="text-center">
-              <Icon name="check-circle" className="w-12 h-12 text-green-500 mx-auto mb-3" />
-              <p className="text-gray-200 font-semibold">Authentication Successful!</p>
-              <p className="text-sm text-gray-400 mt-2">
-                You have successfully connected your {platform} account. Closing in {countdown}s.
-              </p>
-            </div>
-          )}
-
-          <button onClick={onClose} className="absolute top-3 right-3 p-1.5 text-gray-500 hover:text-white rounded-full hover:bg-gray-700 transition-colors">
-            <Icon name="x" className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
     );
 };
 
