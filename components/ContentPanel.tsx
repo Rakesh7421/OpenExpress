@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { AppVersion } from '../types';
 import { Icon } from './common/Icon';
 import { DEVELOPER_SIDEBAR_ITEMS, CLIENT_SIDEBAR_ITEMS } from '../constants';
+import ContentPlanner from './ContentPlanner';
 
 // --- Type Definitions for API Action Tester ---
 interface ApiActionInput {
@@ -1005,8 +1006,8 @@ const PlaceholderContent: React.FC<{itemName: string}> = ({itemName}) => (
 );
 
 const ContentPanel: React.FC<ContentPanelProps> = ({ activeItem, onClose, version, pushedFeatures, onTogglePushFeature }) => {
-    const availableItems = version === AppVersion.DEVELOPER ? DEVELOPER_SIDEBAR_ITEMS : CLIENT_SIDEBAR_ITEMS;
-    const item = availableItems.find(i => i.id === activeItem);
+    const allItems = [...DEVELOPER_SIDEBAR_ITEMS, ...CLIENT_SIDEBAR_ITEMS];
+    const item = allItems.find(i => i.id === activeItem);
 
     const renderContent = () => {
         switch(activeItem) {
@@ -1020,6 +1021,8 @@ const ContentPanel: React.FC<ContentPanelProps> = ({ activeItem, onClose, versio
                 return <ServerContent />;
             case 'checklist':
                 return <ChecklistContent />;
+            case 'planner':
+                return <ContentPlanner version={version} />;
             default:
                 return <PlaceholderContent itemName={item?.label || 'Item'} />;
         }

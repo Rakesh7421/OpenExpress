@@ -6,6 +6,7 @@ export const CLIENT_SIDEBAR_ITEMS = [
   { id: 'text', label: 'Text', icon: <Icon name="text" /> },
   { id: 'images', label: 'Images', icon: <Icon name="image" /> },
   { id: 'shapes', label: 'Shapes', icon: <Icon name="shapes" /> },
+  { id: 'planner', label: 'Planner', icon: <Icon name="calendar" /> },
 ];
 
 export const DEVELOPER_SIDEBAR_ITEMS = [
