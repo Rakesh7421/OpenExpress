@@ -1,0 +1,68 @@
+import os
+from pyb import pyb
+#pyb ("""
+#     #source  /d/installer_files/.venv/Scripts/activate
+#""")
+os.system("d:/installer_files/.venv/Scripts/activate.bat")
+def option_1():
+    """Run the Python server."""
+    print("Running server/server.py...")
+    os.system("python server/server.py")
+
+import os
+import subprocess
+
+def option_2():
+    """Run server + frontend."""
+    print("Starting server and frontend...")
+
+    # Run server first
+    server_cmd = "python server/server.py"
+    print(f"Running: {server_cmd}")
+    server_process = subprocess.Popen(server_cmd, shell=True)
+
+    # Run frontend in Git Bash
+    bash_path = r"C:\Program Files\Git\bin\bash.exe"
+    frontend_cmd = "source ~/.zshrc && npm run dev"
+    print(f"Running in Git Bash: {frontend_cmd}")
+    bash_process = subprocess.Popen([bash_path, "--login", "-i", "-c", frontend_cmd])
+
+    # Optional: wait for both processes to complete
+    server_process.wait()
+    bash_process.wait()
+
+def option_3():
+    """Placeholder for option 3."""
+    print("Option 3 selected. Functionality to be implemented.")
+
+def option_4():
+    """Placeholder for option 4."""
+    print("Option 4 selected. Functionality to be implemented.")
+
+def main():
+    while True:
+        print("\n=== Demo Menu ===")
+        print("1. Run server/server.py")
+        print("2. Starting server and frontend...")
+        print("3. Option 3")
+        print("4. Option 4")
+        print("5. Exit")
+
+        choice = input("Select an option (1-5): ").strip()
+
+        if choice == "1":
+            option_1()
+        elif choice == "2":
+            option_2()
+        elif choice == "3":
+            option_3()
+        elif choice == "4":
+            option_4()
+        elif choice == "5":
+            print("Exiting...")
+            break
+        else:
+            print("Invalid choice! Please enter a number between 1 and 5.")
+
+if __name__ == "__main__":
+    main()
