@@ -6,7 +6,7 @@
  * @param {import('express').Request} req - The Express request object.
  * @param {import('express').Response} res - The Express response object.
  */
-async function postVideoToPage(req, res) {
+export async function postVideoToPage(req, res) {
   // In a real app, you would use the user's access token to make a call to the Graph API.
   console.log('Authenticated user:', req.user);
   console.log('Request to post video to page with body:', req.body);
@@ -22,7 +22,7 @@ async function postVideoToPage(req, res) {
  * @param {import('express').Request} req - The Express request object.
  * @param {import('express').Response} res - The Express response object.
  */
-async function postVideoToGroup(req, res) {
+export async function postVideoToGroup(req, res) {
   console.log('Authenticated user:', req.user);
   console.log('Request to post video to group with body:', req.body);
 
@@ -31,8 +31,3 @@ async function postVideoToGroup(req, res) {
     note: "This is a simulated success response. No actual video was posted."
   });
 }
-
-module.exports = {
-  postVideoToPage,
-  postVideoToGroup,
-};

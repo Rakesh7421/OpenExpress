@@ -1,7 +1,8 @@
-const fs = require('fs').promises;
-const path = require('path');
+import { promises as fs } from 'fs';
+import path from 'path';
 
-const dbPath = path.join(__dirname, 'db.json');
+const dbPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'db.json');
+import { fileURLToPath } from 'url';
 
 /**
  * Reads the content of the database file.
@@ -40,7 +41,7 @@ async function writeDb(data) {
  * @param {string} [params.refreshToken] - The OAuth refresh token (optional).
  * @returns {Promise<object>} The found or created user object.
  */
-async function findOrCreateUser({ profile, accessToken, refreshToken }) {
+export async function findOrCreateUser({ profile, accessToken, refreshToken }) {
   const db = await readDb();
   
   const provider = profile.provider;
@@ -82,5 +83,3 @@ async function findOrCreateUser({ profile, accessToken, refreshToken }) {
   
   return user;
 }
-
-module.exports = { findOrCreateUser };

@@ -5,7 +5,7 @@
  * @param {import('express').Request} req - The Express request object.
  * @param {import('express').Response} res - The Express response object.
  */
-async function getUserInfo(req, res) {
+export async function getUserInfo(req, res) {
   console.log('Authenticated user:', req.user);
   
   // In a real app, you would use the access token to fetch data from the TikTok API.
@@ -20,7 +20,3 @@ async function getUserInfo(req, res) {
     }
   });
 }
-
-module.exports = {
-  getUserInfo,
-};
