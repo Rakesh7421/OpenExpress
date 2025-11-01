@@ -17,6 +17,7 @@ const ServerContent: React.FC = () => {
     const [visibleTooltip, setVisibleTooltip] = useState<number | null>(null);
     const [jwtSecret, setJwtSecret] = useState<string>('your-super-secret-jwt-key');
     const [isJwtSecretVisible, setIsJwtSecretVisible] = useState<boolean>(false);
+    const [testResult, setTestResult] = useState<{ status: 'idle' | 'testing' | 'success' | 'error'; message: string } | null>(null);
 
     const PrepareFilesStepDetails: React.FC = () => (
         <div>
@@ -60,6 +61,7 @@ const ServerContent: React.FC = () => {
     };
 
     const handleToggleConnection = () => {
+        setTestResult(null); // Clear test results on connect/disconnect
         if (status === 'connected') {
             setStatus('disconnected');
         } else if (status === 'disconnected') {
@@ -67,6 +69,23 @@ const ServerContent: React.FC = () => {
             setTimeout(() => {
                 setStatus('connected');
             }, 1500);
+        }
+    };
+
+    const handleTestConnection = async () => {
+        setTestResult({ status: 'testing', message: 'Pinging server...' });
+        try {
+            const response = await fetch('http://localhost:8080/');
+            if (!response.ok) {
+                throw new Error(`Server responded with status: ${response.status}`);
+            }
+            const data = await response.json();
+            setTestResult({ status: 'success', message: data.message || 'Successfully connected!' });
+        } catch (error) {
+            console.error('Connection test failed:', error);
+            setTestResult({ status: 'error', message: 'Connection failed. Is the server running?' });
+        } finally {
+            setTimeout(() => setTestResult(null), 5000); // Clear message after 5 seconds
         }
     };
     
@@ -130,7 +149,26 @@ const ServerContent: React.FC = () => {
                     )}
                     <span>{isConnecting ? 'Connecting' : isConnected ? 'Disconnect' : 'Connect'}</span>
                 </button>
-                 <p className="text-xs text-gray-500 mt-3 text-center">Connect to your local development server.</p>
+                <button
+                    onClick={handleTestConnection}
+                    disabled={!isConnected || isConnecting || testResult?.status === 'testing'}
+                    className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors border border-gray-600 hover:bg-gray-700 text-gray-300 disabled:bg-gray-800/50 disabled:text-gray-500 disabled:cursor-not-allowed disabled:border-gray-700"
+                >
+                    <Icon name="sparkles" className="w-5 h-5" />
+                    <span>{testResult?.status === 'testing' ? 'Testing...' : 'Test Connection'}</span>
+                </button>
+
+                {testResult && testResult.status !== 'idle' && (
+                    <div className={`mt-3 text-center text-xs p-2 rounded-md transition-opacity duration-300 ${
+                        testResult.status === 'testing' ? 'opacity-50' : 'opacity-100'
+                    } ${
+                        testResult.status === 'success' ? 'bg-green-900/50 text-green-300' : 
+                        testResult.status === 'error' ? 'bg-red-900/50 text-red-300' :
+                        'bg-gray-700/50 text-gray-400'
+                    }`}>
+                        {testResult.message}
+                    </div>
+                )}
             </div>
             
             <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
