@@ -26,4 +26,5 @@ devtools
 .env
 secrets/*
 .gitignore
-package-lock.json.
+package-lock.json
+server/server_py_copy.txt
