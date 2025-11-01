@@ -1,0 +1,5 @@
+{
+  "name": "OpenExpress",
+  "description": "A UI for a design and content creation app inspired by Adobe Express. It features two versions: a comprehensive 'Developer' version with advanced tools and a streamlined 'Client' version for essential editing and sharing.",
+  "requestFramePermissions": []
+}
