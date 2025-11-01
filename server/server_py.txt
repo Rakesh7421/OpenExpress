@@ -39,6 +39,29 @@ def save_design():
     dataReceived=request.json 
   ), 201
 
+@app.route('/api/image-upload', methods=['POST'])
+def upload_image():
+  """Endpoint to handle image uploads."""
+  if 'image_file' not in request.files:
+    return jsonify(error='No image file provided.'), 400
+  
+  file = request.files['image_file']
+  
+  if file.filename == '':
+    return jsonify(error='No selected file.'), 400
+
+  if file:
+    # In a real app, you would save the file to a secure location
+    # using werkzeug.utils.secure_filename and then store its path.
+    print(f"Received image file: {file.filename}")
+    print(f"Simulating save for {file.filename}...")
+    
+    # Return a success response with a placeholder URL
+    return jsonify(
+        message='Image uploaded successfully!',
+        imageUrl=f'https://fake-cdn.com/images/{file.filename}'
+    ), 200
+
 # Start the server
 if __name__ == '__main__':
   # Get port from environment variable or default to 8080

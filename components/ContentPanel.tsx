@@ -140,6 +140,20 @@ const ChecklistContent: React.FC = () => {
         return data.message || 'Saved';
     };
 
+    const testUploadEndpoint = async () => {
+        const fakeImageData = new Blob(['(⌐□_□)'], { type: 'image/png' });
+        const formData = new FormData();
+        formData.append('image_file', fakeImageData, 'test-image.png');
+
+        const response = await fetch('http://localhost:8080/api/image-upload', {
+            method: 'POST',
+            body: formData,
+        });
+        if (!response.ok) throw new Error(`Status ${response.status}`);
+        const data = await response.json();
+        return data.imageUrl || 'Uploaded';
+    };
+
     const frontendItems = [
         { id: 'fe-header', label: 'Header Component' },
         { id: 'fe-sidebar', label: 'Sidebar Navigation' },
@@ -151,6 +165,7 @@ const ChecklistContent: React.FC = () => {
     const backendItems = [
         { id: 'be-status', label: 'Server Status Endpoint (/)', testFn: testStatusEndpoint },
         { id: 'be-save', label: 'Save Design Endpoint (/api/save-design)', testFn: testSaveEndpoint },
+        { id: 'be-upload', label: 'Image Upload Endpoint (/api/image-upload)', testFn: testUploadEndpoint },
     ];
 
     const renderChecklistItem = (item: { id: string, label: string }, isBackend = false) => {
@@ -233,20 +248,21 @@ const ServerContent: React.FC = () => {
                 The <code className="text-xs bg-gray-900 p-1 rounded font-mono">server/</code> directory contains the necessary files:
             </p>
             <ul className="list-disc list-inside text-gray-400 my-2 pl-2">
-                <li><code className="text-xs bg-gray-900 p-1 rounded font-mono">server_py.txt</code>: The Python server code.</li>
+                <li><code className="text-xs bg-gray-900 p-1 rounded font-mono">server_py.txt</code>: The Python server script.</li>
+                <li><code className="text-xs bg-gray-900 p-1 rounded font-mono">server_ipynb.txt</code>: An interactive Jupyter Notebook version of the server.</li>
                 <li><code className="text-xs bg-gray-900 p-1 rounded font-mono">requirements.txt</code>: Python dependencies.</li>
             </ul>
             <p className="text-gray-400">
-                On your local machine, you should rename <code className="text-xs bg-gray-900 p-1 rounded font-mono">server_py.txt</code> to <code className="text-xs bg-gray-900 p-1 rounded font-mono">server.py</code> before running it.
+                On your local machine, you should rename <code className="text-xs bg-gray-900 p-1 rounded font-mono">server_py.txt</code> to <code className="text-xs bg-gray-900 p-1 rounded font-mono">server.py</code> or <code className="text-xs bg-gray-900 p-1 rounded font-mono">server_ipynb.txt</code> to <code className="text-xs bg-gray-900 p-1 rounded font-mono">server.ipynb</code> before running it.
             </p>
         </div>
     );
     
     const setupSteps = [
         { id: 1, text: "Prepare server files", details: <PrepareFilesStepDetails /> },
-        { id: 2, text: "Install dependencies", details: "Navigate to your local server directory and run 'pip install -r requirements.txt' to install Flask and Flask-Cors." },
+        { id: 2, text: "Install dependencies", details: "Navigate to your local server directory and run 'pip install -r requirements.txt' to install Flask and Flask-Cors. You can also run the first code cell in the .ipynb file." },
         { id: 3, text: "Configure environment", details: "The server will run on port 8080 by default. You can set the PORT environment variable to change this. Your JWT_SECRET should be handled as an environment variable in a real application." },
-        { id: 4, text: "Start the server", details: "Run 'python server.py' in your server's directory. It will start a local development server." },
+        { id: 4, text: "Start the server", details: "Either run 'python server.py' in your terminal or run all the cells in the 'server.ipynb' notebook. This will start the local development server." },
         { id: 5, text: "Click 'Connect' above", details: "Once the server is running, use the button in the 'Backend Server' panel to establish a connection for the UI." },
     ];
 
