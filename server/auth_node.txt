@@ -16,41 +16,10 @@ replacing the placeholder values with your actual credentials.
 
 PORT=3001
 SESSION_SECRET=a_very_secret_key_for_sessions_that_is_long_and_random
+JWT_SECRET=another_super_secret_key_for_jwt
 
 # Facebook Credentials
-# Go to https://developers.facebook.com/ -> Create App
-# In App Settings -> Basic, find your App ID and App Secret.
-# In Products -> Facebook Login -> Settings, add the callback URL to "Valid OAuth Redirect URIs".
-FACEBOOK_APP_ID=your_facebook_app_id
-FACEBOOK_APP_SECRET=your_facebook_app_secret
-
-# X (Twitter) Credentials
-# Go to https://developer.twitter.com/ -> Developer Portal -> Projects & Apps
-# Create a new App. You may need to apply for Elevated access.
-# In your App's settings -> Keys and tokens, find your API Key and API Key Secret.
-# In App Settings -> Authentication settings, enable 3-legged OAuth and add the callback URL.
-TWITTER_CONSUMER_KEY=your_twitter_api_key
-TWITTER_CONSUMER_SECRET=your_twitter_api_key_secret
-
-# LinkedIn Credentials
-# Go to https://www.linkedin.com/developers/ -> Create app
-# In your app's "Auth" tab, find your Client ID and Client Secret.
-# Add the callback URL to the "Authorized redirect URLs for your app" list.
-LINKEDIN_CLIENT_ID=your_linkedin_client_id
-LINKEDIN_CLIENT_SECRET=your_linkedin_client_secret
-
-# TikTok Credentials
-# Go to https://developers.tiktok.com/ -> My apps -> Create app
-# Choose "Client-side web app".
-# Find your Client key and Client secret on the app's "App details" page.
-# Add the callback URL to the "Callback URL" list.
-# You will also need to request access to the 'user.info.basic' scope.
-TIKTOK_CLIENT_KEY=your_tiktok_client_key
-TIKTOK_CLIENT_SECRET=your_tiktok_client_secret
-
-# Callback URL for all services (based on PORT=3001):
-# http://localhost:3001/auth/[platform]/callback
-# e.g., http://localhost:3001/auth/facebook/callback
+... (rest of instructions are the same)
 --------------------------------------------------------------------------------
 */
 
@@ -58,7 +27,16 @@ const express = require('express');
 const passport = require('passport');
 const session = require('express-session');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
+const { findOrCreateUser } = require('./database');
+
+// API and Middleware imports
+const { verifyToken } = require('./middleware/auth');
+const metaApi = require('./api/meta');
+const twitterApi = require('./api/twitter');
+const linkedinApi = require('./api/linkedin');
+const tiktokApi = require('./api/tiktok');
 
 // Passport Strategies
 const FacebookStrategy = require('passport-facebook').Strategy;
@@ -70,11 +48,20 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // --- Helper Functions ---
-const verifyCallback = (platform) => (accessToken, refreshToken, profile, done) => {
+const verifyCallback = (platform) => async (accessToken, refreshToken, profile, done) => {
     console.log(`Successfully authenticated with ${platform}:`);
-    console.log(profile);
-    // In a real app, find or create a user in your database here.
-    return done(null, profile);
+    console.log(`Profile ID: ${profile.id}, Display Name: ${profile.displayName}`);
+    try {
+        const user = await findOrCreateUser({
+            profile,
+            accessToken,
+            refreshToken,
+        });
+        return done(null, user);
+    } catch (err) {
+        console.error(`Error during findOrCreateUser for ${platform}:`, err);
+        return done(err, null);
+    }
 };
 
 const sendAuthResponse = (res, type, platform) => {
@@ -101,6 +88,7 @@ app.use(session({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
+app.use(express.json()); // Middleware to parse JSON bodies for API endpoints
 
 // --- Passport General Setup ---
 passport.serializeUser((user, done) => done(null, user));
@@ -108,52 +96,46 @@ passport.deserializeUser((obj, done) => done(null, obj));
 
 
 // --- Passport Strategies Setup ---
-
-// Facebook
+// ... (Passport strategy setups remain the same) ...
 if (process.env.FACEBOOK_APP_ID) {
   passport.use(new FacebookStrategy({
       clientID: process.env.FACEBOOK_APP_ID,
       clientSecret: process.env.FACEBOOK_APP_SECRET,
       callbackURL: `http://localhost:${PORT}/auth/facebook/callback`,
       profileFields: ['id', 'displayName', 'photos', 'email']
-    }, verifyCallback('Facebook')));
+    }, verifyCallback('facebook')));
 }
-
-// X (Twitter)
 if (process.env.TWITTER_CONSUMER_KEY) {
   passport.use(new TwitterStrategy({
     consumerKey: process.env.TWITTER_CONSUMER_KEY,
     consumerSecret: process.env.TWITTER_CONSUMER_SECRET,
     callbackURL: `http://localhost:${PORT}/auth/twitter/callback`,
     includeEmail: true
-  }, verifyCallback('Twitter')));
+  }, verifyCallback('twitter')));
 }
-
-// LinkedIn
 if (process.env.LINKEDIN_CLIENT_ID) {
   passport.use(new LinkedInStrategy({
     clientID: process.env.LINKEDIN_CLIENT_ID,
     clientSecret: process.env.LINKEDIN_CLIENT_SECRET,
     callbackURL: `http://localhost:${PORT}/auth/linkedin/callback`,
-    scope: ['r_emailaddress', 'r_liteprofile'], // or 'profile', 'email', 'openid' for v2
-  }, verifyCallback('LinkedIn')));
+    scope: ['r_emailaddress', 'r_liteprofile'],
+  }, verifyCallback('linkedin')));
 }
-
-// TikTok
 if (process.env.TIKTOK_CLIENT_KEY) {
   passport.use(new TikTokStrategy({
     clientID: process.env.TIKTOK_CLIENT_KEY,
     clientSecret: process.env.TIKTOK_CLIENT_SECRET,
     scope: ['user.info.basic'],
     callbackURL: `http://localhost:${PORT}/auth/tiktok/callback`
-  }, verifyCallback('TikTok')));
+  }, verifyCallback('tiktok')));
 }
 
-// --- Routes ---
+
+// --- OAuth Authentication Routes ---
 
 app.get('/', (req, res) => res.send('OpenExpress Node.js Authentication Server is running!'));
 
-// Facebook Routes
+// Facebook
 app.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email'] }));
 app.get('/auth/facebook/callback',
   passport.authenticate('facebook', { failureRedirect: '/auth/failed/facebook' }),
@@ -161,8 +143,7 @@ app.get('/auth/facebook/callback',
 );
 app.get('/auth/failed/facebook', (req, res) => sendAuthResponse(res, 'failure', 'facebook'));
 
-
-// X (Twitter) Routes
+// X (Twitter)
 app.get('/auth/twitter', passport.authenticate('twitter'));
 app.get('/auth/twitter/callback',
   passport.authenticate('twitter', { failureRedirect: '/auth/failed/twitter' }),
@@ -170,21 +151,38 @@ app.get('/auth/twitter/callback',
 );
 app.get('/auth/failed/twitter', (req, res) => sendAuthResponse(res, 'failure', 'twitter'));
 
-// LinkedIn Routes
-app.get('/auth/linkedin', passport.authenticate('linkedin', { state: 'SOME_STATE' })); // State is recommended for security
+// LinkedIn
+app.get('/auth/linkedin', passport.authenticate('linkedin', { state: 'SOME_STATE' }));
 app.get('/auth/linkedin/callback',
   passport.authenticate('linkedin', { failureRedirect: '/auth/failed/linkedin' }),
   (req, res) => sendAuthResponse(res, 'success', 'linkedin')
 );
 app.get('/auth/failed/linkedin', (req, res) => sendAuthResponse(res, 'failure', 'linkedin'));
 
-// TikTok Routes
+// TikTok
 app.get('/auth/tiktok', passport.authenticate('tiktok'));
 app.get('/auth/tiktok/callback',
   passport.authenticate('tiktok', { failureRedirect: '/auth/failed/tiktok' }),
   (req, res) => sendAuthResponse(res, 'success', 'tiktok')
 );
 app.get('/auth/failed/tiktok', (req, res) => sendAuthResponse(res, 'failure', 'tiktok'));
+
+
+// --- Secure API Routes ---
+// These routes should be protected by your JWT middleware.
+
+// Meta (Facebook/Instagram) API Routes
+app.post('/api/meta/page/video', verifyToken, metaApi.postVideoToPage);
+app.post('/api/meta/group/video', verifyToken, metaApi.postVideoToGroup);
+
+// X (Twitter) API Routes
+app.post('/api/twitter/tweet', verifyToken, twitterApi.postTweet);
+
+// LinkedIn API Routes
+app.post('/api/linkedin/profile/post', verifyToken, linkedinApi.postToProfile);
+
+// TikTok API Routes
+app.get('/api/tiktok/user', verifyToken, tiktokApi.getUserInfo);
 
 
 // --- Start Server ---

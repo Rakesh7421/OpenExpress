@@ -547,6 +547,109 @@ const IntegrationsContent: React.FC = () => {
     );
 };
 
+const docStructure = {
+  'Meta': {
+    'Application Walkthrough': '/server/branding/connect_accounts/meta/application_walkthrough.js',
+    'OAuth Flow': '/server/branding/connect_accounts/meta/OAuth.js',
+    'Test Scopes': {
+      'Post Videos to Page': '/server/branding/connect_accounts/meta/Test_scopes/Test_scopes_for_post_videos_in_page.js',
+      'Post Videos to Group': '/server/branding/connect_accounts/meta/Test_scopes/Test_scopes_for_post_videos_in_group.js',
+    }
+  },
+  'X (Twitter)': {
+    'Application Walkthrough': '/server/branding/connect_accounts/x/application_walkthrough.js',
+    'OAuth Flow': '/server/branding/connect_accounts/x/OAuth.js',
+    'Test Scopes': {
+      'Posting a Tweet': '/server/branding/connect_accounts/x/Test_scopes/Test_scopes_for_posting_tweet.js',
+    }
+  },
+  'LinkedIn': {
+    'Application Walkthrough': '/server/branding/connect_accounts/linkedin/application_walkthrough.js',
+    'OAuth Flow': '/server/branding/connect_accounts/linkedin/OAuth.js',
+    'Test Scopes': {
+      'Posting to Profile': '/server/branding/connect_accounts/linkedin/Test_scopes/Test_scopes_for_posting_to_profile.js',
+    }
+  },
+  'TikTok': {
+    'Application Walkthrough': '/server/branding/connect_accounts/tiktok/application_walkthrough.js',
+    'OAuth Flow': '/server/branding/connect_accounts/tiktok/OAuth.js',
+    'Test Scopes': {
+      'Fetching User Info': '/server/branding/connect_accounts/tiktok/Test_scopes/Test_scopes_for_user_info.js',
+    }
+  },
+};
+
+const DocumentationViewer: React.FC<{ docPath: string }> = ({ docPath }) => {
+    const [content, setContent] = useState<string>('Loading...');
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        let isMounted = true;
+        setContent('Loading...');
+        setError(null);
+
+        const loadContent = async () => {
+            try {
+                const module = await import(/* @vite-ignore */ docPath);
+                if (isMounted) {
+                    setContent(module.content);
+                }
+            } catch (e) {
+                console.error(`Failed to load doc: ${docPath}`, e);
+                if (isMounted) {
+                    setError('Could not load documentation file. Make sure it exists and is a valid module.');
+                }
+            }
+        };
+
+        loadContent();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [docPath]);
+
+    return (
+        <div className="p-4 bg-gray-950/50 rounded-lg border border-gray-700/50 h-full max-h-[40rem] overflow-y-auto font-mono text-sm text-gray-300">
+            {error ? <p className="text-red-400">{error}</p> : <pre className="whitespace-pre-wrap">{content}</pre>}
+        </div>
+    );
+};
+
+const DocTree: React.FC<{
+    data: any;
+    onSelect: (path: string) => void;
+    activeDoc: string | null;
+    level?: number;
+}> = ({ data, onSelect, activeDoc, level = 0 }) => {
+    return (
+        <ul className={level > 0 ? 'pl-4' : ''}>
+            {Object.entries(data).map(([key, value]) => (
+                <li key={key} className="my-1">
+                    {typeof value === 'string' ? (
+                        <button
+                            onClick={() => onSelect(value as string)}
+                            className={`w-full text-left text-sm px-2 py-1.5 rounded-md transition-colors ${
+                                activeDoc === value
+                                    ? 'bg-brand-500/20 text-brand-300 font-semibold'
+                                    : 'text-gray-400 hover:bg-gray-700/50 hover:text-white'
+                            }`}
+                        >
+                            {key}
+                        </button>
+                    ) : (
+                        <div>
+                            <span className={`font-semibold text-gray-200 text-sm ${level > 0 ? 'pt-2 block' : ''}`}>{key}</span>
+                            <DocTree data={value} onSelect={onSelect} activeDoc={activeDoc} level={level + 1} />
+                        </div>
+                    )}
+                </li>
+            ))}
+        </ul>
+    );
+};
+
+
 const BrandingContent: React.FC = () => {
     const socialAccounts = [
         { name: 'Meta', route: 'facebook', icon: 'meta', description: 'Facebook & Instagram', color: 'text-blue-500' },
@@ -568,6 +671,7 @@ const BrandingContent: React.FC = () => {
     ];
 
     const [connectionStatus, setConnectionStatus] = useState<{[key: string]: 'disconnected' | 'authenticating' | 'connected'}>({});
+    const [activeDoc, setActiveDoc] = useState<string | null>(null);
 
     const handleConnect = (accountRoute: string) => {
         const authUrl = `http://localhost:3001/auth/${accountRoute}`;
@@ -717,6 +821,25 @@ const BrandingContent: React.FC = () => {
                             </div>
                         )
                     })}
+                 </div>
+            </div>
+            {/* Developer Documentation Section */}
+            <div>
+                 <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 px-1">Developer Documentation</h3>
+                 <div className="p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                    <div className="grid grid-cols-3 gap-6">
+                        <div className="col-span-1">
+                           <h4 className="text-md font-semibold text-gray-200 mb-2">API Guides</h4>
+                           <DocTree data={docStructure} onSelect={setActiveDoc} activeDoc={activeDoc} />
+                        </div>
+                         <div className="col-span-2">
+                            {activeDoc ? <DocumentationViewer docPath={activeDoc} /> : (
+                                <div className="h-full flex items-center justify-center text-center text-gray-500 bg-gray-900/50 rounded-md p-4 border border-dashed border-gray-700">
+                                    <p>Select a document to view its contents.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                  </div>
             </div>
         </div>
