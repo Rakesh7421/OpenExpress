@@ -1,0 +1,69 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "outputDirectory": "dist"
+      }
+    },
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "api/auth.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/auth/(.*)",
+      "dest": "/api/auth.js"
+    },
+    {
+      "src": "/api/meta/(.*)",
+      "dest": "/api/auth.js"
+    },
+    {
+      "src": "/api/twitter/(.*)",
+      "dest": "/api/auth.js"
+    },
+    {
+      "src": "/api/linkedin/(.*)",
+      "dest": "/api/auth.js"
+    },
+    {
+      "src": "/api/tiktok/(.*)",
+      "dest": "/api/auth.js"
+    },
+    {
+      "src": "/api/save-design",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/api/schedule-post",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/api/image-upload",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/api/ai-suggestions",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/api/status",
+      "dest": "/api/index.py"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}

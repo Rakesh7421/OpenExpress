@@ -2,12 +2,10 @@ import React from 'react';
 
 interface IconProps extends React.SVGProps<SVGSVGElement> {
   name: string;
-  // FIX: Add optional title prop to IconProps to support accessibility and fix type errors.
   title?: string;
 }
 
 export const Icon: React.FC<IconProps> = ({ name, ...props }) => {
-  // Destructure title from props to handle it separately for accessibility.
   const { title, ...rest } = props;
 
   const icons: { [key: string]: React.ReactNode } = {
@@ -53,7 +51,6 @@ export const Icon: React.FC<IconProps> = ({ name, ...props }) => {
 
   return (
     <svg xmlns="http://www.w3.org/2000/svg" className="w-full h-full" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} {...rest}>
-      {/* Add a title element for accessibility if the title prop is provided */}
       {title && <title>{String(title)}</title>}
       {icons[name] || <circle cx="12" cy="12" r="10" />}
     </svg>

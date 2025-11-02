@@ -170,7 +170,7 @@ const BrandingContent: React.FC = () => {
     useEffect(() => {
         const handleAuthMessage = (event: MessageEvent) => {
             // IMPORTANT: Check the origin for security in a real production app
-            // if (event.origin !== 'http://localhost:3001') return;
+            // if (event.origin !== window.location.origin) return;
 
             const { type, platform, token } = event.data;
             if (type === 'auth-success' && platform && token) {
@@ -189,7 +189,7 @@ const BrandingContent: React.FC = () => {
     }, []);
 
     const handleConnect = (platformId: string) => {
-        const authUrl = `http://localhost:3001/auth/${platformId}`;
+        const authUrl = `/auth/${platformId}`;
         window.open(authUrl, '_blank', 'width=500,height=600');
     };
 
@@ -353,7 +353,7 @@ const ApiActionTester: React.FC<{ action: ApiAction; onClose: () => void }> = ({
         }
 
         try {
-            const res = await fetch(`http://localhost:3001${action.endpoint}`, {
+            const res = await fetch(action.endpoint, {
                 method: action.method,
                 headers,
                 body,
@@ -561,16 +561,30 @@ const ChecklistContent: React.FC = () => {
     }, []);
 
     const testStatusEndpoint = async () => {
-        const response = await fetch('http://localhost:8080/');
+        const response = await fetch('/api/status');
         if (!response.ok) throw new Error(`Status ${response.status}`);
         const data = await response.json();
         return data.message || 'OK';
     };
 
     const testSaveEndpoint = async () => {
-        const response = await fetch('http://localhost:8080/api/save-design', {
+        // Find any available token to test the authenticated endpoint
+        const platformIds = ['meta', 'x', 'linkedin', 'tiktok'];
+        const token = platformIds.reduce<string | null>((foundToken, id) => {
+            if (foundToken) return foundToken;
+            return localStorage.getItem(`${id}_jwt`);
+        }, null);
+
+        if (!token) {
+            throw new Error("No connected account found. Cannot test authenticated endpoint.");
+        }
+
+        const response = await fetch('/api/save-design', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
             body: JSON.stringify({ title: 'Test Design', content: '...' }),
         });
         if (!response.ok) throw new Error(`Status ${response.status}`);
@@ -583,7 +597,7 @@ const ChecklistContent: React.FC = () => {
         const formData = new FormData();
         formData.append('image_file', fakeImageData, 'test-image.png');
 
-        const response = await fetch('http://localhost:8080/api/image-upload', {
+        const response = await fetch('/api/image-upload', {
             method: 'POST',
             body: formData,
         });
@@ -642,7 +656,7 @@ const ChecklistContent: React.FC = () => {
     ];
 
     const backendItems = [
-        { id: 'be-status', label: 'Server Status Endpoint (/)', testFn: testStatusEndpoint },
+        { id: 'be-status', label: 'Server Status Endpoint (/api/status)', testFn: testStatusEndpoint },
         { id: 'be-save', label: 'Save Design Endpoint (/api/save-design)', testFn: testSaveEndpoint },
         { id: 'be-upload', label: 'Image Upload Endpoint (/api/image-upload)', testFn: testUploadEndpoint },
     ];
@@ -801,7 +815,7 @@ const ServerContent: React.FC = () => {
 
         setStatus('connecting');
         try {
-            const response = await fetch('http://localhost:8080/');
+            const response = await fetch('/api/status');
             if (!response.ok) {
                 throw new Error(`Server responded with status: ${response.status}`);
             }
@@ -811,8 +825,6 @@ const ServerContent: React.FC = () => {
         } catch (error) {
             console.error('Connection attempt failed:', error);
             setStatus('disconnected');
-            // FIX: Safely handle the error object, which is of type `unknown`.
-            // Check if it's an instance of Error to access its `message` property.
             const message = error instanceof Error ? error.message : 'Connection failed. Is the server running?';
             setTestResult({ status: 'error', message });
         } finally {
@@ -823,7 +835,7 @@ const ServerContent: React.FC = () => {
     const handleTestConnection = async () => {
         setTestResult({ status: 'testing', message: 'Pinging server...' });
         try {
-            const response = await fetch('http://localhost:8080/');
+            const response = await fetch('/api/status');
             if (!response.ok) {
                 throw new Error(`Server responded with status: ${response.status}`);
             }
@@ -831,8 +843,6 @@ const ServerContent: React.FC = () => {
             setTestResult({ status: 'success', message: data.message || 'Successfully connected!' });
         } catch (error) {
             console.error('Connection test failed:', error);
-            // FIX: Safely handle the error object, which is of type `unknown`.
-            // Check if it's an instance of Error to access its `message` property.
             const message = error instanceof Error ? error.message : 'Connection failed. Is the server running?';
             setTestResult({ status: 'error', message });
         } finally {

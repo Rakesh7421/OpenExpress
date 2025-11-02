@@ -7,26 +7,25 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 import google.generativeai as genai
 
-# Load environment variables from `secrets/.env` if it exists.
-dotenv_path = os.path.join(os.path.dirname(__file__), '..', 'secrets', '.env')
-if os.path.exists(dotenv_path):
-    load_dotenv(dotenv_path=dotenv_path)
+# In Vercel, environment variables are managed in the project settings.
+# This ensures that secrets are loaded securely.
+# Note: The .env file is not uploaded to Vercel.
+load_dotenv()
 
-# A functional Flask server for the OpenExpress app.
 app = Flask(__name__)
-
-# Middleware
-# Enable Cross-Origin Resource Sharing (CORS)
 CORS(app)
 
 # Load secrets from environment variables.
 JWT_SECRET = os.environ.get('JWT_SECRET', 'your-super-secret-jwt-key-here')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
+# Configure Gemini API only if the key is available.
+# On Vercel, this check determines if the AI features are active.
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 else:
-    print("WARNING: GEMINI_API_KEY is not set. AI features will be disabled.")
+    # This print will appear in the Vercel function logs if the key is missing.
+    print("WARNING: GEMINI_API_KEY environment variable is not set. AI features will be disabled.")
 
 
 # --- Authentication Decorator ---
@@ -35,12 +34,14 @@ def token_required(f):
     def decorated(*args, **kwargs):
         token = None
         if 'authorization' in request.headers:
+            # Expecting 'Bearer <token>'
             token = request.headers['authorization'].split(' ')[1]
         
         if not token:
             return jsonify({'error': 'Token is missing!'}), 401
         
         try:
+            # Decode the token using the secret key
             data = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
             current_user = data['id']
         except jwt.ExpiredSignatureError:
@@ -48,20 +49,24 @@ def token_required(f):
         except jwt.InvalidTokenError:
             return jsonify({'error': 'Token is invalid!'}), 401
         
+        # Pass the user identifier to the decorated function
         return f(current_user, *args, **kwargs)
     return decorated
 
 
-# --- Routes ---
+# --- API Routes ---
 @app.route('/')
 @app.route('/api/status')
 def index():
-  """Root endpoint to check if the server is running."""
-  return jsonify(message='OpenExpress Python server is running!')
+  """Root endpoint to confirm the serverless function is running."""
+  return jsonify(message='OpenExpress Python serverless function is running!')
 
 @app.route('/api/ai-suggestions', methods=['POST'])
 def get_ai_suggestions():
     """Endpoint to get design suggestions from the Gemini API."""
+    # Vercel will not run this part of the code if the key is not set,
+    # because the app will fail to initialize the genai module.
+    # However, this check is good for robustness.
     if not GEMINI_API_KEY:
         return jsonify({
             'error': 'The AI service is not configured on the server; API key is missing.'
@@ -74,6 +79,7 @@ def get_ai_suggestions():
     user_prompt = data['prompt']
 
     try:
+        # Use a recommended model for this kind of task.
         model = genai.GenerativeModel('gemini-2.5-flash')
         
         full_prompt = f"""
@@ -91,9 +97,11 @@ def get_ai_suggestions():
         
         response = model.generate_content(full_prompt)
         
+        # Return the generated text directly.
         return jsonify({'suggestions': response.text})
 
     except Exception as e:
+        # Log the error for debugging on Vercel.
         print(f"Error calling Gemini API: {e}")
         return jsonify({'error': f'Failed to get suggestions from the AI model.'}), 500
 
@@ -106,6 +114,7 @@ def save_design(current_user):
   if not request.json or 'title' not in request.json:
     return jsonify(error='Design title is required.'), 400
   
+  # Simulate saving to a database.
   return jsonify(
     message='Design saved successfully!', 
     designId=f'dsn_{int(time.time())}',
@@ -139,6 +148,7 @@ def upload_image():
     return jsonify(error='No selected file.'), 400
 
   if file:
+    # In Vercel, files can be temporarily stored in the /tmp directory.
     print(f"Received image file: {file.filename}")
     print(f"Simulating save for {file.filename}...")
     
@@ -147,7 +157,8 @@ def upload_image():
         imageUrl=f'https://fake-cdn.com/images/{file.filename}'
     ), 200
 
-# Start the server for local development
+# Vercel does not use the __main__ block. It imports the 'app' object directly.
+# This block is only for local testing if you were to run this file directly.
 if __name__ == '__main__':
   port = int(os.environ.get('PORT', 8080))
   app.run(host='0.0.0.0', port=port, debug=True)

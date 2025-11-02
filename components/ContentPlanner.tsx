@@ -50,7 +50,7 @@ const ContentPlanner: React.FC = () => {
       }
 
       try {
-        const response = await fetch('http://localhost:8080/api/schedule-post', {
+        const response = await fetch('/api/schedule-post', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

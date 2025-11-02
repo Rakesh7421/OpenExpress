@@ -17,7 +17,6 @@ PYTHON_SERVER_SCRIPT_TXT = os.path.join(SERVER_DIR, 'server_py.txt')
 NODE_AUTH_SERVER_SCRIPT = os.path.join(SERVER_DIR, 'auth.js')
 PACKAGE_JSON_TXT = os.path.join(SERVER_DIR, 'package_json.txt')
 PACKAGE_JSON = os.path.join(ROOT_DIR, 'package.json')
-TEMP_PYTHON_SCRIPT = os.path.join(SERVER_DIR, '_temp_server_runner.py')
 
 # --- Helper Functions ---
 
@@ -26,18 +25,6 @@ def print_header(title: str):
     print("\n" + "=" * 50)
     print(f"🚀 {title}")
     print("=" * 50)
-
-def cleanup_temp_files():
-    """Removes temporary files created by the script."""
-    if os.path.exists(TEMP_PYTHON_SCRIPT):
-        try:
-            os.remove(TEMP_PYTHON_SCRIPT)
-            print("\n[Cleanup] Removed temporary Python script.")
-        except OSError as e:
-            print(f"\n[Cleanup-ERR] Error removing temporary file: {e}")
-
-# Register the cleanup function to run on script exit
-atexit.register(cleanup_temp_files)
 
 def prepare_package_json():
     """Ensures package.json exists, creating it from the template if needed."""
@@ -109,28 +96,30 @@ def install_dependencies():
     run_command([sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'], SERVER_DIR, "pip")
     
     print("\n--- Installing Node.js dependencies ---")
-    if not prepare_package_json():
-        print("[npm-ERR] Could not prepare package.json. Skipping npm install.")
+    if not prepare_package_json() or not update_package_json_for_esm():
+        print("[npm-ERR] Could not prepare package.json for Node.js. Skipping npm install.")
         return
     run_command(['npm', 'install'], FRONTEND_DIR, "npm")
 
 def run_python_server():
-    """Runs the Python/Flask API server using a temporary script."""
+    """Runs the Python/Flask API server by executing server_py.txt directly."""
     print_header("Running Python Flask Server")
     if not os.path.exists(PYTHON_SERVER_SCRIPT_TXT):
-        print(f"[{'Python API'}-ERR] Source file not found: {os.path.relpath(PYTHON_SERVER_SCRIPT_TXT, ROOT_DIR)}")
+        print(f"[Python API-ERR] Source file not found: {os.path.relpath(PYTHON_SERVER_SCRIPT_TXT, ROOT_DIR)}")
         return
-        
+    
+    print(f"[Python API] Executing content of {os.path.relpath(PYTHON_SERVER_SCRIPT_TXT, ROOT_DIR)}...")
     try:
-        shutil.copy(PYTHON_SERVER_SCRIPT_TXT, TEMP_PYTHON_SCRIPT)
-        env = os.environ.copy()
-        env['PORT'] = '8080'
-        env['FLASK_APP'] = os.path.basename(TEMP_PYTHON_SCRIPT)
-        env['FLASK_ENV'] = 'development'
-        command = [sys.executable, TEMP_PYTHON_SCRIPT]
-        run_command(command, ROOT_DIR, "Python API", env)
-    finally:
-        cleanup_temp_files()
+        with open(PYTHON_SERVER_SCRIPT_TXT, 'r', encoding='utf-8') as f:
+            server_code = f.read()
+        
+        # Execute the script's code. The globals dict ensures that the
+        # `if __name__ == '__main__':` block inside the script is triggered.
+        # This will block the current thread, which is desired behavior.
+        exec(server_code, {'__name__': '__main__'})
+    except Exception as e:
+        print(f"[Python API-ERR] An error occurred while executing the server script: {e}")
+
 
 def run_node_auth_server():
     """Runs the Node.js/Express authentication server."""
@@ -158,7 +147,17 @@ def run_all_services():
     """Runs all services concurrently in separate threads."""
     print_header("Starting All Services")
 
-    # Pre-flight check before starting threads
+    # Pre-flight check for Node.js dependencies. If they are missing, install them.
+    node_modules_path = os.path.join(FRONTEND_DIR, 'node_modules')
+    if not os.path.isdir(node_modules_path):
+        print("\nInfo: 'node_modules' directory not found. Running dependency installation first.")
+        install_dependencies()
+        # After installation, re-check if node_modules exists before proceeding.
+        if not os.path.isdir(node_modules_path):
+            print("\nError: Dependency installation failed. Cannot start services.")
+            return
+
+    # Pre-flight check for critical script files.
     if not all(os.path.exists(p) for p in [PYTHON_SERVER_SCRIPT_TXT, NODE_AUTH_SERVER_SCRIPT, PACKAGE_JSON]):
          print("\nOne or more required script files are missing. Run 'Check Environment' for details.")
          return

@@ -1,0 +1,181 @@
+import express from 'express';
+import passport from 'passport';
+import session from 'express-session';
+import cors from 'cors';
+import jwt from 'jsonwebtoken';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import * as dotenv from 'dotenv';
+import { findOrCreateUser } from './database.js';
+
+// API and Middleware imports
+import { verifyToken } from './middleware/auth.js';
+import * as metaApi from './api/meta.js';
+import * as twitterApi from './api/twitter.js';
+import * as linkedinApi from './api/linkedin.js';
+import * as tiktokApi from './api/tiktok.js';
+
+// Passport Strategies
+import { Strategy as FacebookStrategy } from 'passport-facebook';
+import { Strategy as TwitterStrategy } from 'passport-twitter';
+import { Strategy as LinkedInStrategy } from 'passport-linkedin-oauth2';
+import { Strategy as TikTokStrategy } from 'passport-tiktok-auth';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+// In Vercel, .env is in the root. The path needs to go up two levels from /api/auth.js
+dotenv.config({ path: path.resolve(__dirname, '..', '..', 'secrets', '.env') });
+
+const app = express();
+const PORT = process.env.PORT || 3001; // Port is for local dev, Vercel handles it automatically.
+
+// --- Helper Functions ---
+const verifyCallback = (platform) => async (accessToken, refreshToken, profile, done) => {
+    console.log(`Successfully authenticated with ${platform}:`);
+    console.log(`Profile ID: ${profile.id}, Display Name: ${profile.displayName}`);
+    try {
+        const user = await findOrCreateUser({
+            profile,
+            accessToken,
+            refreshToken,
+        });
+        return done(null, user);
+    } catch (err) {
+        console.error(`Error during findOrCreateUser for ${platform}:`, err);
+        return done(err, null);
+    }
+};
+
+const generateAndSendToken = (req, res, platform) => {
+    const userPayload = { 
+        id: req.user.id, 
+        displayName: req.user.displayName,
+        provider: req.user.provider
+    };
+    
+    const token = jwt.sign(userPayload, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+    const message = 'Authentication Successful!';
+    res.status(200).send(`
+      <script>
+        window.opener.postMessage({ type: 'auth-success', platform: '${platform}', token: '${token}' }, '*');
+        window.close();
+      </script>
+      <h1>${message}</h1>
+      <p>You can close this window.</p>
+    `);
+};
+
+const sendAuthFailure = (res, platform) => {
+    const message = 'Authentication Failed';
+    res.status(401).send(`
+        <script>
+            window.opener.postMessage({ type: 'auth-failure', platform: '${platform}' }, '*');
+            window.close();
+        </script>
+        <h1>${message}</h1>
+        <p>Please try again. You can close this window.</p>
+    `);
+}
+
+
+// --- Configuration & Middleware ---
+app.use(cors({ origin: '*', credentials: true }));
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'default_secret',
+  resave: false,
+  saveUninitialized: true,
+  cookie: { secure: false } // Set to true if using HTTPS in production
+}));
+app.use(passport.initialize());
+app.use(passport.session());
+app.use(express.json()); // Middleware to parse JSON bodies for API endpoints
+
+// --- Passport General Setup ---
+passport.serializeUser((user, done) => done(null, user));
+passport.deserializeUser((obj, done) => done(null, obj));
+
+
+// --- Passport Strategies Setup ---
+const callbackURLBase = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `http://localhost:${PORT}`;
+
+if (process.env.FACEBOOK_APP_ID) {
+  passport.use(new FacebookStrategy({
+      clientID: process.env.FACEBOOK_APP_ID,
+      clientSecret: process.env.FACEBOOK_APP_SECRET,
+      callbackURL: `${callbackURLBase}/auth/facebook/callback`,
+      profileFields: ['id', 'displayName', 'photos', 'email']
+    }, verifyCallback('facebook')));
+}
+if (process.env.TWITTER_CONSUMER_KEY) {
+  passport.use(new TwitterStrategy({
+    consumerKey: process.env.TWITTER_CONSUMER_KEY,
+    consumerSecret: process.env.TWITTER_CONSUMER_SECRET,
+    callbackURL: `${callbackURLBase}/auth/twitter/callback`,
+    includeEmail: true
+  }, verifyCallback('twitter')));
+}
+if (process.env.LINKEDIN_CLIENT_ID) {
+  passport.use(new LinkedInStrategy({
+    clientID: process.env.LINKEDIN_CLIENT_ID,
+    clientSecret: process.env.LINKEDIN_CLIENT_SECRET,
+    callbackURL: `${callbackURLBase}/auth/linkedin/callback`,
+    scope: ['r_emailaddress', 'r_liteprofile'],
+  }, verifyCallback('linkedin')));
+}
+if (process.env.TIKTOK_CLIENT_KEY) {
+  passport.use(new TikTokStrategy({
+    clientID: process.env.TIKTOK_CLIENT_KEY,
+    clientSecret: process.env.TIKTOK_CLIENT_SECRET,
+    scope: ['user.info.basic'],
+    callbackURL: `${callbackURLBase}/auth/tiktok/callback`
+  }, verifyCallback('tiktok')));
+}
+
+
+// --- OAuth Authentication Routes ---
+
+app.get('/', (req, res) => res.send('OpenExpress Node.js Authentication Server is running!'));
+
+// Facebook
+app.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email'] }));
+app.get('/auth/facebook/callback',
+  passport.authenticate('facebook', { failureRedirect: '/auth/failed/facebook', session: false }),
+  (req, res) => generateAndSendToken(req, res, 'meta')
+);
+app.get('/auth/failed/facebook', (req, res) => sendAuthFailure(res, 'meta'));
+
+// X (Twitter)
+app.get('/auth/twitter', passport.authenticate('twitter'));
+app.get('/auth/twitter/callback',
+  passport.authenticate('twitter', { failureRedirect: '/auth/failed/twitter', session: false }),
+  (req, res) => generateAndSendToken(req, res, 'x')
+);
+app.get('/auth/failed/twitter', (req, res) => sendAuthFailure(res, 'x'));
+
+// LinkedIn
+app.get('/auth/linkedin', passport.authenticate('linkedin', { state: 'SOME_STATE' }));
+app.get('/auth/linkedin/callback',
+  passport.authenticate('linkedin', { failureRedirect: '/auth/failed/linkedin', session: false }),
+  (req, res) => generateAndSendToken(req, res, 'linkedin')
+);
+app.get('/auth/failed/linkedin', (req, res) => sendAuthFailure(res, 'linkedin'));
+
+// TikTok
+app.get('/auth/tiktok', passport.authenticate('tiktok'));
+app.get('/auth/tiktok/callback',
+  passport.authenticate('tiktok', { failureRedirect: '/auth/failed/tiktok', session: false }),
+  (req, res) => generateAndSendToken(req, res, 'tiktok')
+);
+app.get('/auth/failed/tiktok', (req, res) => sendAuthFailure(res, 'tiktok'));
+
+
+// --- Secure API Routes ---
+app.post('/api/meta/page/video', verifyToken, metaApi.postVideoToPage);
+app.post('/api/meta/group/video', verifyToken, metaApi.postVideoToGroup);
+app.post('/api/twitter/tweet', verifyToken, twitterApi.postTweet);
+app.post('/api/linkedin/profile/post', verifyToken, linkedinApi.postToProfile);
+app.get('/api/tiktok/user', verifyToken, tiktokApi.getUserInfo);
+
+// Export the app for Vercel
+export default app;
