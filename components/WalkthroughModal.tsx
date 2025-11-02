@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Icon } from './common/Icon';
 import { PlatformName } from './BrandingContent';
+import * as SharedMetaWalkthrough from '../walkthroughs/shared-meta';
 import * as FacebookWalkthrough from '../walkthroughs/facebook';
 import * as InstagramWalkthrough from '../walkthroughs/instagram';
 import * as PinterestWalkthrough from '../walkthroughs/pinterest';
@@ -14,7 +15,7 @@ interface WalkthroughModalProps {
 const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
     const renderLine = (line: string, index: number) => {
         if (line.startsWith('# ')) {
-            return <h2 key={index} className="text-xl font-bold mt-4 mb-2 text-white">{line.substring(2)}</h2>;
+            return <h2 key={index} className="text-xl font-bold mt-4 mb-2 text-white pb-2 border-b border-gray-600">{line.substring(2)}</h2>;
         }
         if (line.startsWith('## ')) {
             return <h3 key={index} className="text-lg font-semibold mt-3 mb-1 text-gray-200">{line.substring(3)}</h3>;
@@ -26,8 +27,8 @@ const MarkdownRenderer: React.FC<{ content: string }> = ({ content }) => {
             // This is a simple list item, not a full list implementation
             return <li key={index} className="text-gray-400 list-disc ml-5">{line.substring(2)}</li>;
         }
-        if (line.startsWith('1. ') || line.startsWith('2. ') || line.startsWith('3. ') || line.startsWith('4. ') || line.startsWith('5. ')) {
-            return <li key={index} className="text-gray-400 list-decimal ml-5">{line.substring(3)}</li>;
+        if (line.match(/^\d+\.\s/)) {
+             return <li key={index} className="text-gray-400 list-decimal ml-5">{line.substring(line.indexOf(' ') + 1)}</li>;
         }
         if (line.trim() === '') {
             return <br key={index} />;
@@ -57,10 +58,10 @@ const WalkthroughModal: React.FC<WalkthroughModalProps> = ({ platform, onClose }
     let walkthroughContent = '';
     switch (platform) {
       case 'Facebook':
-        walkthroughContent = FacebookWalkthrough.content;
+        walkthroughContent = SharedMetaWalkthrough.content + '\n\n' + FacebookWalkthrough.content;
         break;
       case 'Instagram':
-        walkthroughContent = InstagramWalkthrough.content;
+        walkthroughContent = SharedMetaWalkthrough.content + '\n\n' + InstagramWalkthrough.content;
         break;
       case 'Pinterest':
         walkthroughContent = PinterestWalkthrough.content;
