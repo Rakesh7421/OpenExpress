@@ -8,10 +8,6 @@ import getpass
 import shutil
 import ctypes
 from datetime import datetime
-from colorama import Fore, Style, init
-
-# --- Init colorama ---
-init(autoreset=True)
 
 # --- Configuration ---
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -30,25 +26,6 @@ TEMPO_ENV_PATH = os.path.join('F:\\', 'Codebase', 'EnvSetup', 'cred', '.env', 'O
 TEMPO_LOGS_DIR = os.path.join('F:\\', 'Codebase', 'EnvSetup', 'cred', '.env', 'OpenExpress', 'logs')
 TEMPO_NODE_MODULES_TARGET = os.path.join('D:\\', 'installer_files', 'node_modules', 'OpenExpress', 'node_modules')
 
-<<<<<<< HEAD
-# --- Helper Functions ---
-
-def log(msg):
-    """Colorized log output with timestamp."""
-    timestamp = f"{Fore.CYAN}[{datetime.now().strftime('%H:%M:%S')}]{Style.RESET_ALL}"
-    # Color code based on message content
-    if "✅" in msg:
-        color = Fore.GREEN + Style.BRIGHT
-    elif "❌" in msg or "ERROR" in msg:
-        color = Fore.RED + Style.BRIGHT
-    elif "⚠️" in msg or "Warning" in msg:
-        color = Fore.YELLOW + Style.BRIGHT
-    elif "🚀" in msg:
-        color = Fore.MAGENTA + Style.BRIGHT
-    else:
-        color = Fore.WHITE
-    print(f"{timestamp} {color}{msg}{Style.RESET_ALL}")
-=======
 
 # --- Color & Formatting ---
 class Color:
@@ -85,7 +62,6 @@ FILTER_OUT_PATTERNS = [
 
 def log(msg, color=Color.WHITE):
     print(f"{color}[{datetime.now().strftime('%H:%M:%S')}] {msg}{Color.RESET}")
->>>>>>> 675e68ab6c13e543ece9372adb83c40c16ea244a
 
 def is_user_tempo():
     try:
@@ -99,11 +75,7 @@ def get_python_executable():
             log(f"Using custom Python executable for 'Tempo': {TEMPO_PYTHON_EXECUTABLE}", Color.CYAN)
             return TEMPO_PYTHON_EXECUTABLE
         else:
-<<<<<<< HEAD
-            log(f"{Fore.YELLOW}Warning: Custom Python for 'Tempo' not found at {TEMPO_PYTHON_EXECUTABLE}. Falling back to default.")
-=======
             log(f"Warning: Custom Python for 'Tempo' not found at {TEMPO_PYTHON_EXECUTABLE}. Falling back to default.", Color.YELLOW)
->>>>>>> 675e68ab6c13e543ece9372adb83c40c16ea244a
     return sys.executable
 
 PYTHON_EXECUTABLE = get_python_executable()
@@ -116,26 +88,11 @@ def is_admin():
             return False
     return os.geteuid() == 0 if hasattr(os, 'geteuid') else True
 
+
 def print_header(title: str):
-<<<<<<< HEAD
-    border = Fore.MAGENTA + "="*50 + Style.RESET_ALL
-    print(f"\n{border}")
-    print(f"{Fore.CYAN + Style.BRIGHT}🚀 {title}{Style.RESET_ALL}")
-    print(border)
-
-# --- The rest of your script remains identical below this line ---
-# (no logic changes at all)
-# ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
-
-# Everything else from your original script continues here
-# (functions like prepare_package_json, check_vercel_compatibility, etc.)
-# You don’t need to modify their logic — only their printed output will now be colorized
-# because `log()` and `print_header()` are globally used throughout the code.
-=======
     print(f"\n{Color.BOLD}{'='*60}{Color.RESET}")
     print(f"{Color.BOLD}🚀 {title}{Color.RESET}")
     print(f"{Color.BOLD}{'='*60}{Color.RESET}")
->>>>>>> 675e68ab6c13e543ece9372adb83c40c16ea244a
 
 def prepare_package_json():
     if os.path.exists(PACKAGE_JSON):
