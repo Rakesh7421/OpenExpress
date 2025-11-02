@@ -1,17 +1,21 @@
-import React, { useState, useCallback } from 'react';
-import { AppVersion } from '../types';
+
+import React, { useMemo, useCallback } from 'react';
+import { AppVersion, DesignElement, ElementType, TextElement, ShapeElement } from '../types';
 import { getDesignSuggestions } from '../services/geminiService';
 import { Icon } from './common/Icon';
 
 interface RightPanelProps {
   version: AppVersion;
+  elements: DesignElement[];
+  selectedElementId: string | null;
+  onUpdateElement: (id: string, updatedProperties: Partial<DesignElement>) => void;
 }
 
 const AISuggestionsPanel: React.FC = () => {
-    const [prompt, setPrompt] = useState<string>("A modern, minimalist design for a coffee shop's social media post");
-    const [suggestions, setSuggestions] = useState<string>('');
-    const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [error, setError] = useState<string | null>(null);
+    const [prompt, setPrompt] = React.useState<string>("A modern, minimalist design for a coffee shop's social media post");
+    const [suggestions, setSuggestions] = React.useState<string>('');
+    const [isLoading, setIsLoading] = React.useState<boolean>(false);
+    const [error, setError] = React.useState<string | null>(null);
 
     const handleGenerate = useCallback(async () => {
         if (!prompt.trim()) return;
@@ -105,11 +109,113 @@ const LayersPanel: React.FC = () => (
     </div>
 );
 
+const PropertyInput: React.FC<{label: string, children: React.ReactNode}> = ({ label, children }) => (
+    <div>
+        <label className="text-xs text-gray-400 font-medium">{label}</label>
+        <div className="mt-1">
+            {children}
+        </div>
+    </div>
+);
 
-const RightPanel: React.FC<RightPanelProps> = ({ version }) => {
+const ElementPropertiesPanel: React.FC<{
+    selectedElement: DesignElement;
+    onUpdateElement: (id: string, updatedProperties: Partial<DesignElement>) => void;
+}> = ({ selectedElement, onUpdateElement }) => {
+    
+    // FIX: Refactor handleUpdate to accept a partial properties object for better type safety.
+    const handleUpdate = (updatedProperties: Partial<DesignElement>) => {
+        onUpdateElement(selectedElement.id, updatedProperties);
+    };
+
+    const renderTextProperties = (element: TextElement) => (
+        <>
+            <PropertyInput label="Content">
+                <textarea 
+                    value={element.content} 
+                    // FIX: Pass an object to handleUpdate.
+                    onChange={e => handleUpdate({ content: e.target.value })}
+                    rows={4}
+                    className="w-full p-2 bg-gray-800 border border-gray-600 rounded-md text-sm"
+                />
+            </PropertyInput>
+            <PropertyInput label="Font Size">
+                 <input 
+                    type="number"
+                    value={element.fontSize} 
+                    // FIX: Pass an object to handleUpdate.
+                    onChange={e => handleUpdate({ fontSize: parseInt(e.target.value, 10) || 0 })}
+                    className="w-full p-2 bg-gray-800 border border-gray-600 rounded-md text-sm"
+                />
+            </PropertyInput>
+            <PropertyInput label="Color">
+                 <input 
+                    type="color"
+                    value={element.color} 
+                    // FIX: Pass an object to handleUpdate.
+                    onChange={e => handleUpdate({ color: e.target.value })}
+                    className="w-full h-10 p-1 bg-gray-800 border border-gray-600 rounded-md cursor-pointer"
+                />
+            </PropertyInput>
+        </>
+    );
+
+     const renderShapeProperties = (element: ShapeElement) => (
+        <>
+            <PropertyInput label="Background Color">
+                 <input 
+                    type="color"
+                    value={element.backgroundColor} 
+                    // FIX: Pass an object to handleUpdate.
+                    onChange={e => handleUpdate({ backgroundColor: e.target.value })}
+                    className="w-full h-10 p-1 bg-gray-800 border border-gray-600 rounded-md cursor-pointer"
+                />
+            </PropertyInput>
+        </>
+    );
+    
+    return (
+        <div className="p-4 space-y-4">
+             <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Properties</h3>
+             <div className="space-y-3">
+                 <div className="grid grid-cols-2 gap-3">
+                     <PropertyInput label="X">
+                         {/* FIX: Pass an object to handleUpdate. */}
+                         <input type="number" value={Math.round(selectedElement.x)} onChange={e => handleUpdate({ x: parseInt(e.target.value, 10) || 0 })} className="w-full p-2 bg-gray-800 border border-gray-600 rounded-md text-sm" />
+                     </PropertyInput>
+                      <PropertyInput label="Y">
+                         {/* FIX: Pass an object to handleUpdate. */}
+                         <input type="number" value={Math.round(selectedElement.y)} onChange={e => handleUpdate({ y: parseInt(e.target.value, 10) || 0 })} className="w-full p-2 bg-gray-800 border border-gray-600 rounded-md text-sm" />
+                     </PropertyInput>
+                 </div>
+                 <div className="grid grid-cols-2 gap-3">
+                      <PropertyInput label="Width">
+                         {/* FIX: Pass an object to handleUpdate. */}
+                         <input type="number" value={Math.round(selectedElement.width)} onChange={e => handleUpdate({ width: parseInt(e.target.value, 10) || 0 })} className="w-full p-2 bg-gray-800 border border-gray-600 rounded-md text-sm" />
+                     </PropertyInput>
+                      <PropertyInput label="Height">
+                         {/* FIX: Pass an object to handleUpdate. */}
+                         <input type="number" value={Math.round(selectedElement.height)} onChange={e => handleUpdate({ height: parseInt(e.target.value, 10) || 0 })} className="w-full p-2 bg-gray-800 border border-gray-600 rounded-md text-sm" />
+                     </PropertyInput>
+                 </div>
+                 {selectedElement.type === ElementType.TEXT && renderTextProperties(selectedElement as TextElement)}
+                 {selectedElement.type === ElementType.SHAPE && renderShapeProperties(selectedElement as ShapeElement)}
+             </div>
+        </div>
+    );
+};
+
+
+const RightPanel: React.FC<RightPanelProps> = ({ version, elements, selectedElementId, onUpdateElement }) => {
+    const selectedElement = useMemo(() => 
+        elements.find(el => el.id === selectedElementId),
+    [elements, selectedElementId]);
+
   return (
     <aside className="w-80 bg-gray-900 border-l border-gray-700/50 flex flex-col overflow-y-auto">
-      {version === AppVersion.DEVELOPER ? (
+      {selectedElement ? (
+        <ElementPropertiesPanel selectedElement={selectedElement} onUpdateElement={onUpdateElement} />
+      ) : version === AppVersion.DEVELOPER ? (
         <>
             <AISuggestionsPanel/>
             <div className="border-t border-gray-700/50 my-2"></div>
@@ -118,27 +224,7 @@ const RightPanel: React.FC<RightPanelProps> = ({ version }) => {
       ) : (
         <div className="p-4 space-y-4">
           <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Edit</h3>
-          <div className="space-y-4">
-            <div>
-                <label className="text-sm text-gray-400">Background Color</label>
-                <div className="flex items-center gap-2 mt-1">
-                    <div className="w-8 h-8 rounded border-2 border-white bg-indigo-100"></div>
-                    <span className="font-mono text-sm">#EBF4FF</span>
-                </div>
-            </div>
-             <div>
-                <label className="text-sm text-gray-400">Font</label>
-                <select className="w-full mt-1 p-2 bg-gray-800 border border-gray-600 rounded-md">
-                    <option>Inter</option>
-                    <option>Roboto</option>
-                    <option>Lato</option>
-                </select>
-            </div>
-             <div>
-                <label className="text-sm text-gray-400">Font Size</label>
-                <input type="range" min="12" max="120" defaultValue="64" className="w-full mt-1"/>
-            </div>
-          </div>
+           <p className="text-sm text-gray-400">Select an element on the canvas to edit its properties.</p>
         </div>
       )}
     </aside>

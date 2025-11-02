@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { AppVersion } from '../types';
+import { AppVersion, DesignElement, ElementType, ShapeType, TextElement, ShapeElement } from '../types';
 import { Icon } from './common/Icon';
 import { DEVELOPER_SIDEBAR_ITEMS, CLIENT_SIDEBAR_ITEMS } from '../constants';
 import ContentPlanner from './ContentPlanner';
@@ -28,6 +28,7 @@ interface ContentPanelProps {
   version: AppVersion;
   pushedFeatures: Set<string>;
   onTogglePushFeature: (featureId: string) => void;
+  onAddElement: (element: Omit<DesignElement, 'id'>) => void;
 }
 
 // Reusable styled select component
@@ -51,9 +52,78 @@ const StyledSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement> & { l
 
 
 const TemplatesContent: React.FC = () => <div className="p-4 text-gray-400">Templates panel content goes here.</div>;
-const TextContent: React.FC = () => <div className="p-4 text-gray-400">Text editing tools and presets will be here.</div>;
+
+const TextContent: React.FC<{ onAddElement: (element: Omit<DesignElement, 'id'>) => void }> = ({ onAddElement }) => {
+    const addText = (preset: 'heading' | 'subheading' | 'body') => {
+        const presets = {
+            heading: { content: 'Heading Text', fontSize: 48, width: 300, height: 60 },
+            subheading: { content: 'Subheading', fontSize: 28, width: 250, height: 40 },
+            body: { content: 'Lorem ipsum dolor sit amet...', fontSize: 16, width: 200, height: 80 },
+        };
+        const selected = presets[preset];
+        onAddElement({
+            type: ElementType.TEXT,
+            x: 200,
+            y: 200,
+            width: selected.width,
+            height: selected.height,
+            rotation: 0,
+            content: selected.content,
+            fontSize: selected.fontSize,
+            color: '#333333',
+            fontFamily: 'Inter',
+        } as Omit<TextElement, 'id'>);
+    }
+
+    return (
+        <div className="p-4 space-y-3">
+            <button onClick={() => addText('heading')} className="w-full p-4 bg-gray-800 rounded-lg text-left hover:bg-gray-700 transition-colors">
+                <h3 className="text-2xl font-bold text-white">Add a heading</h3>
+            </button>
+            <button onClick={() => addText('subheading')} className="w-full p-4 bg-gray-800 rounded-lg text-left hover:bg-gray-700 transition-colors">
+                <h4 className="text-lg font-semibold text-gray-200">Add a subheading</h4>
+            </button>
+            <button onClick={() => addText('body')} className="w-full p-4 bg-gray-800 rounded-lg text-left hover:bg-gray-700 transition-colors">
+                <p className="text-sm text-gray-300">Add body text</p>
+            </button>
+        </div>
+    );
+};
+
 const ImagesContent: React.FC = () => <div className="p-4 text-gray-400">Image library and upload options.</div>;
-const ShapesContent: React.FC = () => <div className="p-4 text-gray-400">Shape library and creation tools.</div>;
+
+const ShapesContent: React.FC<{ onAddElement: (element: Omit<DesignElement, 'id'>) => void }> = ({ onAddElement }) => {
+    const addShape = (shapeType: ShapeType) => {
+        onAddElement({
+            type: ElementType.SHAPE,
+            shapeType,
+            x: 250,
+            y: 250,
+            width: 150,
+            height: 150,
+            rotation: 0,
+            backgroundColor: '#0ea5e9',
+            borderColor: '#0284c7',
+            borderWidth: 0,
+        } as Omit<ShapeElement, 'id'>);
+    };
+    
+    return (
+        <div className="p-4">
+             <div className="grid grid-cols-2 gap-3">
+                 <button onClick={() => addShape(ShapeType.RECTANGLE)} className="flex flex-col items-center justify-center p-4 bg-gray-800 rounded-lg aspect-square hover:bg-gray-700 transition-colors">
+                     <div className="w-16 h-16 bg-brand-500"></div>
+                     <span className="mt-2 text-sm text-gray-300">Rectangle</span>
+                 </button>
+                 <button onClick={() => addShape(ShapeType.ELLIPSE)} className="flex flex-col items-center justify-center p-4 bg-gray-800 rounded-lg aspect-square hover:bg-gray-700 transition-colors">
+                     <div className="w-16 h-16 bg-brand-500 rounded-full"></div>
+                     <span className="mt-2 text-sm text-gray-300">Ellipse</span>
+                 </button>
+            </div>
+        </div>
+    );
+};
+
 const AiSuggestContent: React.FC = () => <div className="p-4 text-gray-400">AI-powered suggestions for content and design.</div>;
 
 const PlatformConnectionConfig: React.FC<{
@@ -1048,12 +1118,12 @@ const ServerContent: React.FC = () => {
     );
 };
 
-const ContentPanel: React.FC<ContentPanelProps> = ({ activeItem, onClose, version, pushedFeatures, onTogglePushFeature }) => {
+const ContentPanel: React.FC<ContentPanelProps> = ({ activeItem, onClose, version, pushedFeatures, onTogglePushFeature, onAddElement }) => {
   const contentMap: { [key: string]: React.ReactNode } = {
     templates: <TemplatesContent />,
-    text: <TextContent />,
+    text: <TextContent onAddElement={onAddElement} />,
     images: <ImagesContent />,
-    shapes: <ShapesContent />,
+    shapes: <ShapesContent onAddElement={onAddElement} />,
     ai: <ApiActionCenter />,
     branding: <BrandingContent />,
     collaboration: <CollaborationContent />,

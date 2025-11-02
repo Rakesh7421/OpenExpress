@@ -1,5 +1,6 @@
+
 import React, { useState, useCallback } from 'react';
-import { AppVersion } from './types';
+import { AppVersion, DesignElement } from './types';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import Canvas from './components/Canvas';
@@ -10,6 +11,8 @@ export default function App(): React.ReactElement {
   const [version, setVersion] = useState<AppVersion>(AppVersion.DEVELOPER);
   const [activeSidebarItem, setActiveSidebarItem] = useState<string | null>('server');
   const [pushedFeatures, setPushedFeatures] = useState<Set<string>>(new Set());
+  const [canvasElements, setCanvasElements] = useState<DesignElement[]>([]);
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
 
   const handleVersionChange = useCallback((newVersion: AppVersion) => {
     setVersion(newVersion);
@@ -34,6 +37,26 @@ export default function App(): React.ReactElement {
       return newSet;
     });
   }, []);
+  
+  const addCanvasElement = useCallback((element: Omit<DesignElement, 'id'>) => {
+    const newElement = { ...element, id: `el_${Date.now()}` } as DesignElement;
+    setCanvasElements(prev => [...prev, newElement]);
+    setSelectedElementId(newElement.id);
+  }, []);
+
+  const updateCanvasElement = useCallback((elementId: string, updatedProperties: Partial<DesignElement>) => {
+    setCanvasElements(prev => 
+      prev.map(el => 
+        // FIX: Add type assertion to resolve spread operator issue with union types.
+        el.id === elementId ? ({ ...el, ...updatedProperties } as DesignElement) : el
+      )
+    );
+  }, []);
+
+  const handleSelectElement = useCallback((elementId: string | null) => {
+    setSelectedElementId(elementId);
+  }, []);
+
 
   return (
     <div className="flex flex-col h-screen w-screen bg-gray-900 text-gray-100 font-sans overflow-hidden">
@@ -53,12 +76,23 @@ export default function App(): React.ReactElement {
             version={version}
             pushedFeatures={pushedFeatures}
             onTogglePushFeature={handleTogglePushFeature}
+            onAddElement={addCanvasElement}
           />
         }
         <main className="flex-1 flex items-center justify-center p-4 bg-gray-800/50">
-          <Canvas />
+          <Canvas
+            elements={canvasElements}
+            selectedElementId={selectedElementId}
+            onSelectElement={handleSelectElement}
+            onUpdateElement={updateCanvasElement}
+           />
         </main>
-        <RightPanel version={version} />
+        <RightPanel 
+          version={version} 
+          elements={canvasElements}
+          selectedElementId={selectedElementId}
+          onUpdateElement={updateCanvasElement}
+        />
       </div>
     </div>
   );
