@@ -1,5 +1,5 @@
 export const content = `
-# Facebook-Specific Configuration
+# Meta (Facebook)-Specific Configuration
 
 After following the main **Shared Meta App Setup Guide** to get your App ID and Secret, ensure the following settings are correct for a standard Facebook Page or Group integration.
 

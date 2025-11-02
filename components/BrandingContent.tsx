@@ -5,9 +5,10 @@ import WalkthroughModal from './WalkthroughModal'; // Import the new modal compo
 
 type Status = 'idle' | 'loading' | 'success' | 'error' | 'warning';
 type Stage = 'dev' | 'live';
-export type PlatformName = 'Facebook' | 'Instagram' | 'Pinterest';
+export type PlatformName = 'Meta' | 'X' | 'LinkedIn' | 'TikTok' | 'Instagram' | 'Pinterest';
 
-const PLATFORMS: PlatformName[] = ['Facebook', 'Instagram', 'Pinterest'];
+const PLATFORMS: PlatformName[] = ['Meta', 'X', 'LinkedIn', 'TikTok', 'Instagram', 'Pinterest'];
+
 
 // --- Helper Components ---
 
@@ -45,7 +46,7 @@ const BrandingContent: React.FC = () => {
     const [currentStage, setCurrentStage] = useState<Stage>('dev');
     
     // --- UI State ---
-    const [activePlatform, setActivePlatform] = useState<PlatformName>('Facebook');
+    const [activePlatform, setActivePlatform] = useState<PlatformName>('Meta');
     const [validationStatus, setValidationStatus] = useState<{ status: Status, message: string }>({ status: 'idle', message: '' });
     const [scopeTestResult, setScopeTestResult] = useState<{ scope: string, status: 'Granted' | 'Missing' }[] | null>(null);
     const [isWalkthroughOpen, setIsWalkthroughOpen] = useState(false);
@@ -102,18 +103,21 @@ const BrandingContent: React.FC = () => {
             return;
         }
 
-        const { app_id } = currentPlatformConfig.credentials;
+        const { app_id, consumer_key } = currentPlatformConfig.credentials;
         const { redirect_uri } = currentPlatformConfig.oauth;
 
-        if (!app_id || !redirect_uri) {
-            alert('App ID and Redirect URI must be configured before connecting.');
+        if (!(app_id || consumer_key) || !redirect_uri) {
+            alert('App ID/Consumer Key and Redirect URI must be configured before connecting.');
             return;
         }
         
         const platformMap: Record<string, string> = {
-            Facebook: 'facebook',
+            Meta: 'facebook',
             Instagram: 'facebook', 
-            Pinterest: 'pinterest'
+            X: 'twitter',
+            LinkedIn: 'linkedin',
+            TikTok: 'tiktok',
+            Pinterest: 'pinterest' // Assuming a future pinterest handler
         };
         const authProvider = platformMap[activePlatform];
         
@@ -126,9 +130,11 @@ const BrandingContent: React.FC = () => {
         window.open(authUrl, '_blank', 'width=600,height=700');
     };
 
+    const isMetaPlatform = activePlatform === 'Meta' || activePlatform === 'Instagram';
+
     const handleValidateTokens = async () => {
-        if (!currentPlatformConfig || activePlatform !== 'Facebook') {
-            setValidationStatus({ status: 'warning', message: 'Validation is only available for Facebook.' });
+        if (!currentPlatformConfig || !isMetaPlatform) {
+            setValidationStatus({ status: 'warning', message: 'Validation is only available for Meta platforms.' });
             return;
         }
         setValidationStatus({ status: 'loading', message: 'Validating tokens...' });
@@ -167,7 +173,7 @@ const BrandingContent: React.FC = () => {
     };
     
     const handleTestScopes = async () => {
-        if (!currentPlatformConfig || activePlatform !== 'Facebook' || !currentPlatformConfig.tokens.user) {
+        if (!currentPlatformConfig || !isMetaPlatform || !currentPlatformConfig.tokens.user) {
             setValidationStatus({ status: 'warning', message: 'User Token is required to test scopes.' });
             return;
         }
@@ -347,13 +353,13 @@ const BrandingContent: React.FC = () => {
                             </div>
                              <div className="flex items-center justify-between">
                                 <p className="text-sm">Validate stored tokens:</p>
-                                <button onClick={handleValidateTokens} className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-white bg-gray-600 hover:bg-gray-500 rounded-md transition-colors">
+                                <button onClick={handleValidateTokens} disabled={!isMetaPlatform} className="disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-white bg-gray-600 hover:bg-gray-500 rounded-md transition-colors">
                                     <Icon name="check-circle" className="w-4 h-4" /> Validate Tokens
                                 </button>
                             </div>
                             <div className="flex items-center justify-between">
                                 <p className="text-sm">Test configured scopes:</p>
-                                <button onClick={handleTestScopes} className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-white bg-gray-600 hover:bg-gray-500 rounded-md transition-colors">
+                                <button onClick={handleTestScopes} disabled={!isMetaPlatform} className="disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-white bg-gray-600 hover:bg-gray-500 rounded-md transition-colors">
                                     <Icon name="checklist" className="w-4 h-4" /> Test Scopes
                                 </button>
                             </div>

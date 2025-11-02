@@ -5,6 +5,9 @@ import * as SharedMetaWalkthrough from '../walkthroughs/shared-meta';
 import * as FacebookWalkthrough from '../walkthroughs/facebook';
 import * as InstagramWalkthrough from '../walkthroughs/instagram';
 import * as PinterestWalkthrough from '../walkthroughs/pinterest';
+import * as XWalkthrough from '../walkthroughs/x';
+import * as LinkedInWalkthrough from '../walkthroughs/linkedin';
+import * as TikTokWalkthrough from '../walkthroughs/tiktok';
 
 interface WalkthroughModalProps {
   platform: PlatformName;
@@ -57,7 +60,7 @@ const WalkthroughModal: React.FC<WalkthroughModalProps> = ({ platform, onClose }
     setIsLoading(true);
     let walkthroughContent = '';
     switch (platform) {
-      case 'Facebook':
+      case 'Meta':
         walkthroughContent = SharedMetaWalkthrough.content + '\n\n' + FacebookWalkthrough.content;
         break;
       case 'Instagram':
@@ -65,6 +68,15 @@ const WalkthroughModal: React.FC<WalkthroughModalProps> = ({ platform, onClose }
         break;
       case 'Pinterest':
         walkthroughContent = PinterestWalkthrough.content;
+        break;
+      case 'X':
+        walkthroughContent = XWalkthrough.content;
+        break;
+      case 'LinkedIn':
+        walkthroughContent = LinkedInWalkthrough.content;
+        break;
+      case 'TikTok':
+        walkthroughContent = TikTokWalkthrough.content;
         break;
       default:
         walkthroughContent = '## No guide available for this platform.';

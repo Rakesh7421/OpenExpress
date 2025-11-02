@@ -50,18 +50,28 @@ export interface AppConfig {
 }
 
 // Default empty structure for a new platform configuration, using the universal template.
-const createEmptyPlatformConfig = (): PlatformConfig => ({
-    dev: {
-        credentials: { app_id: "", app_secret: "" },
-        tokens: { user: "", page: "" },
-        oauth: { redirect_uri: "http://localhost:8080/auth/callback", scopes: "" }
-    },
-    live: {
-        credentials: { app_id: "", app_secret: "" },
-        tokens: { user: "", page: "" },
-        oauth: { redirect_uri: "https://your-app.com/auth/callback", scopes: "" }
+const createEmptyPlatformConfig = (platform: string): PlatformConfig => {
+    // FIX: Explicitly type credentials and tokens to allow for different property shapes.
+    let credentials: { [key: string]: string; } = { app_id: "", app_secret: "" };
+    let tokens: { [key: string]: string; } = { user: "", page: "" };
+    let oauth = { redirect_uri: `http://localhost:8080/auth/${platform.toLowerCase()}/callback`, scopes: "" };
+
+    // FIX: Use 'twitter' as the platform key for 'X', matching its usage in initialAppConfig.
+    if(platform === 'twitter') {
+        credentials = { consumer_key: "", consumer_secret: "" };
+        tokens = { access_token: "", access_token_secret: "" };
+        oauth.scopes = "tweet.read,tweet.write,users.read";
     }
-});
+
+    return {
+        dev: { credentials, tokens, oauth },
+        live: {
+            credentials,
+            tokens,
+            oauth: { ...oauth, redirect_uri: `https://your-app.com/auth/${platform.toLowerCase()}/callback` }
+        }
+    }
+};
 
 // The initial state of the application configuration, loaded on startup.
 export const initialAppConfig: AppConfig = {
@@ -69,7 +79,7 @@ export const initialAppConfig: AppConfig = {
     "current_selection": {
         "user": "rakesh",
         "brand": "mv",
-        "platform": "Facebook"
+        "platform": "Meta"
     },
     "users": {
         "default_user": {
@@ -81,9 +91,12 @@ export const initialAppConfig: AppConfig = {
                         description: "A default brand for general use."
                     },
                     platforms: {
-                        "Facebook": createEmptyPlatformConfig(),
-                        "Instagram": createEmptyPlatformConfig(),
-                        "Pinterest": createEmptyPlatformConfig(),
+                        "Meta": createEmptyPlatformConfig('facebook'),
+                        "X": createEmptyPlatformConfig('twitter'),
+                        "LinkedIn": createEmptyPlatformConfig('linkedin'),
+                        "TikTok": createEmptyPlatformConfig('tiktok'),
+                        "Instagram": createEmptyPlatformConfig('facebook'),
+                        "Pinterest": createEmptyPlatformConfig('pinterest'),
                     }
                 }
             }
@@ -97,7 +110,7 @@ export const initialAppConfig: AppConfig = {
                         description: "Main brand for Rakesh's projects."
                     },
                     platforms: {
-                        "Facebook": {
+                        "Meta": {
                             "dev": {
                                 "credentials": {
                                     "app_id": "1268753368113520",
@@ -114,16 +127,19 @@ export const initialAppConfig: AppConfig = {
                                     "scopes": "pages_manage_posts,publish_video,pages_read_engagement,pages_show_list,publish_to_groups,groups_access_member_info"
                                 }
                             },
-                            "live": createEmptyPlatformConfig().dev
+                            "live": createEmptyPlatformConfig('facebook').dev
                         },
-                        "Instagram": createEmptyPlatformConfig(),
+                        "X": createEmptyPlatformConfig('twitter'),
+                        "LinkedIn": createEmptyPlatformConfig('linkedin'),
+                        "TikTok": createEmptyPlatformConfig('tiktok'),
+                        "Instagram": createEmptyPlatformConfig('facebook'),
                         "Pinterest": {
                              "dev": {
                                 "credentials": { app_id: "", app_secret: "" },
                                 "tokens": { user: "" },
                                 "oauth": { redirect_uri: "http://localhost:8080/auth/pinterest/callback", scopes: "pins:read,pins:write" }
                             },
-                            "live": createEmptyPlatformConfig().dev
+                            "live": createEmptyPlatformConfig('pinterest').dev
                         },
                     }
                 }
