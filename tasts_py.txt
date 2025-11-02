@@ -15,7 +15,7 @@ SERVER_DIR = os.path.join(ROOT_DIR, 'server')
 FRONTEND_DIR = ROOT_DIR
 
 PYTHON_SERVER_SCRIPT_TXT = os.path.join(SERVER_DIR, 'server_py.txt')
-PACKAGE_JSON = os.path.join(ROOT_DIR, 'package.json')
+PACKAGE_JSON = os.path.join(FRONTEND_DIR, 'package.json')
 
 NODE_INSTALL_DIR_TEMPO = os.path.join('D:\\', 'installer_files', 'node_modules', 'openexpress')
 NODE_MODULES_TARGET_TEMPO = os.path.join(NODE_INSTALL_DIR_TEMPO, 'node_modules')
@@ -58,8 +58,8 @@ def is_admin():
 
 def clear_node_modules_cache():
     """Removes local node_modules if exists and clears npm cache"""
-    if os.path.isdir(NODE_MODULES_LINK_PATH) or os.path.islink(NODE_MODULES_LINK_PATH):
-        log(f"Removing existing node_modules: {NODE_MODULES_LINK_PATH}")
+    if os.path.lexists(NODE_MODULES_LINK_PATH):
+        log(f"Removing existing node_modules from project directory: {NODE_MODULES_LINK_PATH}")
         try:
             if os.path.islink(NODE_MODULES_LINK_PATH):
                 os.unlink(NODE_MODULES_LINK_PATH)
@@ -69,57 +69,49 @@ def clear_node_modules_cache():
             log(f"Failed to remove node_modules: {e}")
     
     log("Cleaning npm cache...")
-    subprocess.run(['npm', 'cache', 'clean', '--force'], cwd=FRONTEND_DIR, shell=True)
+    subprocess.run(['npm', 'cache', 'clean', '--force'], cwd=FRONTEND_DIR, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 def setup_node_modules_junction():
     if not is_user_tempo():
         return True
     if not is_admin():
-        log("⚠️ Junction creation requires admin privileges on Windows.")
+        log("⚠️ Junction creation requires admin privileges on Windows. Please re-run as an administrator.")
         return False
 
-    log("Setting up centralized node_modules junction")
+    log("Setting up centralized node_modules junction...")
 
-    # Forcefully remove any existing node_modules (folder or symlink)
+    # Forcefully remove any existing node_modules (folder or symlink) from the project directory.
     if os.path.lexists(NODE_MODULES_LINK_PATH):
+        log(f"Found existing item at '{NODE_MODULES_LINK_PATH}'. Removing it.")
         try:
             if os.path.islink(NODE_MODULES_LINK_PATH):
                 os.unlink(NODE_MODULES_LINK_PATH)
-                log("Existing symlink removed.")
+                log("Successfully removed existing symlink.")
             elif os.path.isdir(NODE_MODULES_LINK_PATH):
-                shutil.rmtree(NODE_MODULES_LINK_PATH, ignore_errors=True)
-                log("Existing folder removed.")
-            else:
-                os.remove(NODE_MODULES_LINK_PATH)
-                log("Existing file removed.")
+                shutil.rmtree(NODE_MODULES_LINK_PATH)
+                log("Successfully removed existing directory.")
         except Exception as e:
-            log(f"Warning: Could not remove {NODE_MODULES_LINK_PATH}, retrying: {e}")
-            try:
-                if os.path.isdir(NODE_MODULES_LINK_PATH):
-                    shutil.rmtree(NODE_MODULES_LINK_PATH, ignore_errors=True)
-                else:
-                    os.unlink(NODE_MODULES_LINK_PATH)
-            except Exception as e2:
-                log(f"Failed to remove node_modules: {e2}")
-                return False
+            log(f"Error removing existing node_modules item: {e}")
+            return False
 
-    # Make sure target directory exists
+    # Make sure the centralized target directory exists
     try:
         os.makedirs(NODE_MODULES_TARGET_TEMPO, exist_ok=True)
     except Exception as e:
-        log(f"Failed to create target directory: {e}")
+        log(f"Failed to create target directory '{NODE_MODULES_TARGET_TEMPO}': {e}")
         return False
 
-    # Create junction
+    # Create the junction link
     try:
         subprocess.check_call(
             f'mklink /J "{NODE_MODULES_LINK_PATH}" "{NODE_MODULES_TARGET_TEMPO}"',
-            shell=True
+            shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
         log("Successfully created junction for node_modules.")
         return True
     except subprocess.CalledProcessError as e:
-        log(f"Failed to create junction: {e}")
+        log(f"Error: Failed to create junction. This can happen if the link path still exists or due to permissions issues.")
+        log(f"Command failed with error: {e}")
         return False
 
 def print_header(title: str):
@@ -154,7 +146,7 @@ def run_command_filtered(command, working_dir, name):
         use_shell = platform.system() == 'Windows'
         process = subprocess.Popen(
             command, cwd=working_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, shell=use_shell
+            text=True, shell=use_shell, encoding='utf-8', errors='replace'
         )
         for line in iter(process.stdout.readline, ''):
             if line.strip():
@@ -165,38 +157,44 @@ def run_command_filtered(command, working_dir, name):
     except Exception as e:
         log(f"{name}-ERR: {e}")
 
-def install_dependencies():
-    print_header("Installing Dependencies")
-
-    # --- Python ---
-    log("Installing Python dependencies")
+def install_backend_dependencies():
+    print_header("Installing Backend (Python) Dependencies")
+    log("Installing Python dependencies for local server...")
     run_command_filtered([PYTHON_EXECUTABLE, '-m', 'pip', 'install', '-r', os.path.join(SERVER_DIR, 'requirements.txt')], SERVER_DIR, "pip-server")
+    log("Installing Python dependencies for Vercel deployment...")
     run_command_filtered([PYTHON_EXECUTABLE, '-m', 'pip', 'install', '-r', os.path.join(ROOT_DIR, 'requirements.txt')], ROOT_DIR, "pip-vercel")
 
-    # --- Node ---
+def install_frontend_dependencies():
+    print_header("Installing Frontend (Node.js) Dependencies")
     if not prepare_package_json():
         log("Failed to prepare package.json, skipping npm install")
         return
 
     clear_node_modules_cache()
     if is_user_tempo() and not setup_node_modules_junction():
-        log("Failed to setup centralized node_modules")
+        log("Failed to setup centralized node_modules. Aborting frontend dependency installation.")
         return
 
-    log("Installing Node.js dependencies")
-    subprocess.run(['npm', 'install'], cwd=FRONTEND_DIR, shell=True)
+    log("Installing Node.js dependencies via npm...")
+    run_command_filtered(['npm', 'install'], FRONTEND_DIR, "npm")
 
     # Ensure @vitejs/plugin-react is installed
     plugin_path = os.path.join(NODE_MODULES_LINK_PATH, VITE_PLUGIN_REACT)
     if not os.path.exists(plugin_path):
-        log(f"{VITE_PLUGIN_REACT} missing, installing...")
-        subprocess.run(['npm', 'install', VITE_PLUGIN_REACT, '--save-dev'], cwd=FRONTEND_DIR, shell=True)
+        log(f"{VITE_PLUGIN_REACT} appears to be missing after install, attempting to install it directly...")
+        run_command_filtered(['npm', 'install', VITE_PLUGIN_REACT, '--save-dev'], FRONTEND_DIR, "npm-vite-plugin")
+    
+    log("Frontend dependency installation complete.")
+
+def install_all_dependencies():
+    install_backend_dependencies()
+    install_frontend_dependencies()
 
 def run_command(command, working_dir, name, env=None):
     log(f"{name}: Starting command: {' '.join(command)}")
     process = subprocess.Popen(
         command, cwd=working_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        text=True, shell=True, env=env
+        text=True, shell=True, env=env, encoding='utf-8', errors='replace'
     )
     def stream(pipe, prefix):
         for line in iter(pipe.readline, ''):
@@ -223,14 +221,17 @@ def run_frontend_dev_server():
 
     vite_bin = os.path.join(NODE_MODULES_LINK_PATH, ".bin", "vite.cmd" if platform.system()=="Windows" else "vite")
     if not os.path.exists(vite_bin):
-        log("vite missing, installing...")
-        subprocess.run(['npm', 'install', 'vite', '--save-dev'], cwd=FRONTEND_DIR, shell=True)
+        log("Vite executable not found. Trying to install dependencies first...")
+        install_frontend_dependencies()
+        if not os.path.exists(vite_bin):
+            log("Vite is still missing after install attempt. Cannot start server.")
+            return
 
     run_command(['npm', 'run', 'dev'], FRONTEND_DIR, "Frontend", env=os.environ.copy())
 
 def run_all_services():
     print_header("Starting All Services")
-    install_dependencies()
+    # No need to run install again if user just wants to run
     threads = [threading.Thread(target=run_python_server),
                threading.Thread(target=run_frontend_dev_server)]
     for t in threads: t.start()
@@ -250,7 +251,7 @@ def check_environment():
     if all(checks.values()):
         log("Environment OK")
     else:
-        log("Some files missing")
+        log("Some files are missing. Run dependency installation and check your .env file.")
 
 def log_errors_only():
     print_header("Aggregating Error Logs")
@@ -312,17 +313,19 @@ def log_errors_only():
 
 def main():
     menu = {
-        '1': ('Install Dependencies', install_dependencies),
-        '2': ('Run Python API & Auth Server', run_python_server),
-        '3': ('Run Frontend Dev Server', run_frontend_dev_server),
-        '4': ('Run All Services', run_all_services),
-        '5': ('Aggregate Error Logs', log_errors_only),
-        '6': ('Check Environment', check_environment),
-        '7': ('Exit', lambda: sys.exit(0))
+        '1': ('Install Backend (Python) Dependencies', install_backend_dependencies),
+        '2': ('Install Frontend (Node) Dependencies', install_frontend_dependencies),
+        '3': ('Install All Dependencies', install_all_dependencies),
+        '4': ('Run Python API & Auth Server', run_python_server),
+        '5': ('Run Frontend Dev Server', run_frontend_dev_server),
+        '6': ('Run All Services', run_all_services),
+        '7': ('Aggregate Error Logs', log_errors_only),
+        '8': ('Check Environment', check_environment),
+        '9': ('Exit', lambda: sys.exit(0))
     }
     while True:
         print_header("Developer Task Runner")
-        for k,(txt,_) in menu.items():
+        for k, (txt, _) in sorted(menu.items()):
             print(f"{k}. {txt}")
         choice = input("Select option: ").strip()
         if choice in menu:
