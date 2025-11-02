@@ -82,7 +82,7 @@ const PlatformConnectionConfig: React.FC<{
   const canSave = brand && platform && stage && credentialType && (credentialType !== 'app' || (appId.trim() && appSecret.trim()));
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4 animate-fade-in">
       <div className="flex items-center justify-between">
           <h3 className="text-md font-semibold text-gray-200">Configure {platform}</h3>
       </div>
@@ -1035,7 +1035,7 @@ const ServerContent: React.FC = () => {
                                 </button>
                             </div>
                             {visibleTooltip === step.id && (
-                                <div className="mt-1 ml-10 p-3 bg-gray-900 rounded-md border border-gray-700 text-sm">
+                                <div className="mt-1 ml-10 p-3 bg-gray-900 rounded-md border border-gray-700 text-sm animate-fade-in">
                                     {typeof step.details === 'string' ? <p className="text-gray-400">{step.details}</p> : step.details}
                                 </div>
                             )}

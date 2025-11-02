@@ -56,21 +56,6 @@ def is_admin():
             return False
     return True
 
-def clear_node_modules_cache():
-    """Removes local node_modules if exists and clears npm cache"""
-    if os.path.lexists(NODE_MODULES_LINK_PATH):
-        log(f"Removing existing node_modules from project directory: {NODE_MODULES_LINK_PATH}")
-        try:
-            if os.path.islink(NODE_MODULES_LINK_PATH):
-                os.unlink(NODE_MODULES_LINK_PATH)
-            else:
-                shutil.rmtree(NODE_MODULES_LINK_PATH)
-        except Exception as e:
-            log(f"Failed to remove node_modules: {e}")
-    
-    log("Cleaning npm cache...")
-    subprocess.run(['npm', 'cache', 'clean', '--force'], cwd=FRONTEND_DIR, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
 def setup_node_modules_junction():
     if not is_user_tempo():
         return True
@@ -84,15 +69,21 @@ def setup_node_modules_junction():
     if os.path.lexists(NODE_MODULES_LINK_PATH):
         log(f"Found existing item at '{NODE_MODULES_LINK_PATH}'. Removing it.")
         try:
-            if os.path.islink(NODE_MODULES_LINK_PATH):
-                os.unlink(NODE_MODULES_LINK_PATH)
-                log("Successfully removed existing symlink.")
+            if os.path.islink(NODE_MODULES_LINK_PATH) or os.path.isfile(NODE_MODULES_LINK_PATH):
+                os.remove(NODE_MODULES_LINK_PATH)
+                log("Successfully removed existing file/symlink.")
             elif os.path.isdir(NODE_MODULES_LINK_PATH):
                 shutil.rmtree(NODE_MODULES_LINK_PATH)
                 log("Successfully removed existing directory.")
         except Exception as e:
             log(f"Error removing existing node_modules item: {e}")
-            return False
+            log("Attempting forceful removal with command line...")
+            try:
+                subprocess.check_call(f'rmdir /s /q "{NODE_MODULES_LINK_PATH}"', shell=True, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+                log("Forceful removal successful.")
+            except Exception as e2:
+                log(f"Forceful removal also failed: {e2}")
+                return False
 
     # Make sure the centralized target directory exists
     try:
@@ -102,9 +93,11 @@ def setup_node_modules_junction():
         return False
 
     # Create the junction link
+    command = f'mklink /J "{NODE_MODULES_LINK_PATH}" "{NODE_MODULES_TARGET_TEMPO}"'
+    log(f"Executing: {command}")
     try:
         subprocess.check_call(
-            f'mklink /J "{NODE_MODULES_LINK_PATH}" "{NODE_MODULES_TARGET_TEMPO}"',
+            command,
             shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
         log("Successfully created junction for node_modules.")
@@ -170,16 +163,29 @@ def install_frontend_dependencies():
         log("Failed to prepare package.json, skipping npm install")
         return
 
-    clear_node_modules_cache()
-    if is_user_tempo() and not setup_node_modules_junction():
-        log("Failed to setup centralized node_modules. Aborting frontend dependency installation.")
-        return
-
+    if is_user_tempo():
+        if not setup_node_modules_junction():
+            log("Failed to setup centralized node_modules. Aborting frontend dependency installation.")
+            return
+    else:
+        # For non-Tempo users, just ensure the local directory is clean
+        if os.path.lexists(NODE_MODULES_LINK_PATH):
+            log(f"Removing existing node_modules from project directory: {NODE_MODULES_LINK_PATH}")
+            try:
+                shutil.rmtree(NODE_MODULES_LINK_PATH)
+            except Exception as e:
+                log(f"Failed to remove node_modules: {e}")
+    
+    log("Cleaning npm cache...")
+    subprocess.run(['npm', 'cache', 'clean', '--force'], cwd=FRONTEND_DIR, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
     log("Installing Node.js dependencies via npm...")
     run_command_filtered(['npm', 'install'], FRONTEND_DIR, "npm")
 
     # Ensure @vitejs/plugin-react is installed
-    plugin_path = os.path.join(NODE_MODULES_LINK_PATH, VITE_PLUGIN_REACT)
+    check_path = NODE_MODULES_TARGET_TEMPO if is_user_tempo() else NODE_MODULES_LINK_PATH
+    plugin_path = os.path.join(check_path, VITE_PLUGIN_REACT)
+
     if not os.path.exists(plugin_path):
         log(f"{VITE_PLUGIN_REACT} appears to be missing after install, attempting to install it directly...")
         run_command_filtered(['npm', 'install', VITE_PLUGIN_REACT, '--save-dev'], FRONTEND_DIR, "npm-vite-plugin")
@@ -215,10 +221,15 @@ def run_python_server():
 
 def run_frontend_dev_server():
     print_header("Running Frontend Dev Server")
-    if not os.path.isdir(NODE_MODULES_LINK_PATH):
-        log("node_modules missing, run install_dependencies first")
+    
+    node_modules_path_to_check = NODE_MODULES_LINK_PATH
+    if is_user_tempo() and not os.path.exists(NODE_MODULES_LINK_PATH):
+        log("Junction link for node_modules not found. Run 'Install Frontend Dependencies' first.")
         return
-
+    elif not is_user_tempo() and not os.path.isdir(NODE_MODULES_LINK_PATH):
+        log("node_modules missing, run 'Install Frontend Dependencies' first.")
+        return
+        
     vite_bin = os.path.join(NODE_MODULES_LINK_PATH, ".bin", "vite.cmd" if platform.system()=="Windows" else "vite")
     if not os.path.exists(vite_bin):
         log("Vite executable not found. Trying to install dependencies first...")

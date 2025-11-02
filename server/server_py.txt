@@ -314,6 +314,10 @@ def handle_exception(e):
 def index():
   return jsonify(message='OpenExpress Python server is running!')
 
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204
+
 @app.route('/api/logs')
 @token_required
 def get_logs(current_user):

@@ -98,7 +98,7 @@ const ContentPlanner: React.FC = () => {
                 <StyledSelect label="Platform" id="client-platform" options={platforms} value={platform} onChange={e => setPlatform(e.target.value)} />
             </div>
             {selectionMade && (
-                <div className="mt-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700 flex items-center gap-3">
+                <div className="mt-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700 flex items-center gap-3 animate-fade-in">
                 <Icon name="check-circle" className="w-5 h-5 text-green-500 flex-shrink-0" />
                 <div>
                     <h4 className="text-sm font-semibold text-gray-300">Target Selected</h4>
@@ -129,7 +129,7 @@ const ContentPlanner: React.FC = () => {
       {/* Shared Footer/Action Area */}
       <div className="p-4 border-t border-gray-700/50 mt-auto flex-shrink-0">
          {scheduleStatus && (
-            <div className={`mb-3 p-2 text-center text-sm rounded-md ${
+            <div className={`mb-3 p-2 text-center text-sm rounded-md animate-fade-in ${
                 scheduleStatus.type === 'success' ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'
             }`}>
                 {scheduleStatus.message}
