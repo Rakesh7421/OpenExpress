@@ -15,16 +15,15 @@ FRONTEND_DIR = ROOT_DIR
 
 PYTHON_SERVER_SCRIPT_TXT = os.path.join(SERVER_DIR, 'server_py.txt')
 PACKAGE_JSON = os.path.join(ROOT_DIR, 'package.json')
+NODE_INSTALL_PREFIX_TEMPO = os.path.join('D:\\', 'installer_files', 'node_modules', 'openexpress')
+
 
 # --- Helper Functions ---
 
 def get_python_executable():
     """Returns the path to the python executable, with special handling for user 'Tempo'."""
     try:
-        # Use getpass.getuser() for better compatibility across environments
         if getpass.getuser().lower() == 'tempo' and platform.system() == 'Windows':
-            # The user provided `/d/`, which often means `D:` in MSYS/Git Bash environments.
-            # We will construct the standard Windows path.
             custom_path = os.path.join('D:\\', 'installer_files', '.venv', 'Scripts', 'python.exe')
             if os.path.exists(custom_path):
                 print(f"Info: Using custom Python executable for user 'Tempo': {custom_path}")
@@ -37,6 +36,16 @@ def get_python_executable():
     return sys.executable
 
 PYTHON_EXECUTABLE = get_python_executable()
+
+def get_npm_command_base():
+    """Returns the base npm command list, with special handling for user 'Tempo'."""
+    try:
+        if getpass.getuser().lower() == 'tempo' and platform.system() == 'Windows':
+            print(f"Info: Using custom Node.js prefix for user 'Tempo': {NODE_INSTALL_PREFIX_TEMPO}")
+            return ['npm', '--prefix', NODE_INSTALL_PREFIX_TEMPO]
+    except Exception as e:
+        print(f"Warning: Could not check for 'Tempo' user. Using default npm. Reason: {e}")
+    return ['npm']
 
 
 def print_header(title: str):
@@ -119,7 +128,11 @@ def install_dependencies():
     if not prepare_package_json():
         print("[npm-ERR] Could not prepare package.json for Node.js. Skipping npm install.")
         return
-    run_command(['npm', 'install'], FRONTEND_DIR, "npm")
+    
+    npm_base_cmd = get_npm_command_base()
+    install_cmd = npm_base_cmd + ['install']
+    # npm --prefix will install dependencies of the CWD, so we run from the project root.
+    run_command(install_cmd, FRONTEND_DIR, "npm")
 
 def run_python_server():
     """Runs the Python/Flask API & Auth server."""
@@ -137,15 +150,25 @@ def run_frontend_dev_server():
     if not os.path.exists(PACKAGE_JSON):
         print("[Frontend-ERR] package.json not found. Cannot start. Try running 'Install Dependencies' first.")
         return
-    run_command(['npm', 'run', 'dev'], FRONTEND_DIR, "Frontend")
+    
+    npm_base_cmd = get_npm_command_base()
+    run_cmd = npm_base_cmd + ['run', 'dev']
+    run_command(run_cmd, FRONTEND_DIR, "Frontend")
+
 
 def run_all_services():
     """Runs all services concurrently in separate threads."""
     print_header("Starting All Services")
 
     node_modules_path = os.path.join(FRONTEND_DIR, 'node_modules')
+    try:
+        if getpass.getuser().lower() == 'tempo' and platform.system() == 'Windows':
+            node_modules_path = os.path.join(NODE_INSTALL_PREFIX_TEMPO, 'node_modules')
+    except Exception:
+        pass # Stick with default path
+
     if not os.path.isdir(node_modules_path):
-        print("\nInfo: 'node_modules' directory not found. Running dependency installation first.")
+        print(f"\nInfo: 'node_modules' directory not found at '{node_modules_path}'. Running dependency installation first.")
         install_dependencies()
         if not os.path.isdir(node_modules_path):
             print("\nError: Dependency installation failed. Cannot start services.")

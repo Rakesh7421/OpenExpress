@@ -33,10 +33,19 @@ app.secret_key = os.environ.get('SESSION_SECRET', 'a_very_secret_key_for_session
 CORS(app)
 
 # --- Logging Setup ---
-LOG_DIR = os.path.join(os.path.dirname(__file__), '..', 'logs')
+log_dir_user = r'F:\Codebase\EnvSetup\cred\.env\OpenExpress\logs'
+log_dir_project = os.path.join(os.path.dirname(__file__), '..', 'logs')
+LOG_DIR = log_dir_project  # Default
+
+if platform.system() == 'Windows':
+    # If the parent directory of the custom log path exists, use it.
+    if os.path.exists(os.path.dirname(log_dir_user)):
+        LOG_DIR = log_dir_user
+
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR)
 LOG_FILE = os.path.join(LOG_DIR, 'server.log')
+
 
 handler = RotatingFileHandler(LOG_FILE, maxBytes=100000, backupCount=3)
 handler.setFormatter(logging.Formatter(
@@ -45,6 +54,8 @@ handler.setFormatter(logging.Formatter(
 app.logger.setLevel(logging.INFO)
 app.logger.addHandler(handler)
 app.logger.info("Flask server process started.")
+app.logger.info(f"Using log file at: {LOG_FILE}")
+
 
 if loaded_path:
     app.logger.info(f"Loaded .env from: {loaded_path}")
