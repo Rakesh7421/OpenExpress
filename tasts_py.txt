@@ -534,36 +534,6 @@ def log_errors_only():
         log(f"Error: Could not write to destination error file {dest_error_file}: {e}")
 
 def main():
-    # If the user is 'Tempo', launch the Python CLI frontend directly.
-    if is_user_tempo():
-        print_header("Launching OpenExpress Python Frontend for user 'Tempo'")
-        log("This provides a command-line interface to the application.")
-        
-        py_frontend_script = os.path.join(ROOT_DIR, 'frontend', 'python', 'main_py.txt')
-
-        if not os.path.exists(py_frontend_script):
-            log(f"❌ Critical Error: Python frontend script not found at '{py_frontend_script}'")
-            return
-
-        try:
-            # Use subprocess.run to execute the script and inherit the console
-            # for interactive input.
-            subprocess.run(
-                [PYTHON_EXECUTABLE, py_frontend_script],
-                cwd=ROOT_DIR,
-                check=True
-            )
-        except subprocess.CalledProcessError as e:
-            log(f"❌ The Python frontend exited with an error (code {e.returncode}).")
-        except FileNotFoundError:
-            log(f"❌ Error: Could not find the Python executable '{PYTHON_EXECUTABLE}'.")
-        except Exception as e:
-            log(f"❌ An unexpected error occurred while trying to launch the frontend: {e}")
-        
-        log("\nPython frontend session has ended.")
-        sys.exit(0)
-
-    # --- Regular menu for all other users ---
     menu = {
         '1': ('Install All Dependencies', install_all_dependencies),
         '2': ('Install Backend (Python) Only', install_backend_dependencies),
