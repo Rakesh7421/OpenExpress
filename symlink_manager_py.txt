@@ -6,6 +6,7 @@ import shutil
 
 def log(msg):
     """Prints a log message with a script identifier."""
+    # NOTE: Removed unicode characters for Windows console compatibility.
     print(f"[{os.path.basename(__file__)}] {msg}")
 
 def create_junction(target_path, link_path):
@@ -20,17 +21,17 @@ def create_junction(target_path, link_path):
             capture_output=True,
             text=True
         )
-        log("✅ Junction created successfully.")
+        log("Success: Junction created successfully.")
         return True
     except subprocess.CalledProcessError as e:
-        log("❌ Failed to create junction using 'mklink /J'.")
+        log("Error: Failed to create junction using 'mklink /J'.")
         # Provide a cleaner error message from stderr.
         error_message = e.stderr.strip() if e.stderr else "Unknown error."
-        log(f"   Error: {error_message}")
+        log(f"   Details: {error_message}")
         log("   This can happen if the link path already exists as a file or if permissions are insufficient.")
         return False
     except FileNotFoundError:
-        log("❌ 'cmd.exe' not found in system PATH. Cannot create a junction.")
+        log("Error: 'cmd.exe' not found in system PATH. Cannot create a junction.")
         return False
 
 def create_symlink_unix(target_path, link_path):
@@ -38,10 +39,10 @@ def create_symlink_unix(target_path, link_path):
     log(f"Attempting to create symlink from '{link_path}' to '{target_path}'")
     try:
         os.symlink(target_path, link_path)
-        log("✅ Symlink created successfully.")
+        log("Success: Symlink created successfully.")
         return True
     except OSError as e:
-        log(f"❌ Failed to create symlink: {e}")
+        log(f"Error: Failed to create symlink: {e}")
         return False
 
 def main(target_arg, link_arg):
@@ -61,25 +62,39 @@ def main(target_arg, link_arg):
         os.makedirs(link_parent_dir, exist_ok=True)
         log("   - Directories are ready.")
     except OSError as e:
-        log(f"❌ Failed to create necessary directories: {e}")
+        log(f"Error: Failed to create necessary directories: {e}")
         sys.exit(1)
 
     # Step 2: Clean up any pre-existing file, directory, or link at the target location.
     log(f"-> Checking for existing item at '{link_path}'...")
     try:
-        if os.path.islink(link_path):
-            os.remove(link_path)
-            log("   - Removed existing symlink.")
-        elif os.path.isdir(link_path):
-            shutil.rmtree(link_path) # rmtree correctly handles directories and junctions.
-            log("   - Removed existing directory/junction.")
-        elif os.path.exists(link_path):
-            os.remove(link_path) # It's a file.
-            log("   - Removed existing file.")
+        if os.path.lexists(link_path):
+            # First, check for standard symbolic links.
+            if os.path.islink(link_path):
+                os.remove(link_path)
+                log("   - Removed existing symbolic link.")
+            # On Windows, junctions are directories but not links. `os.rmdir` can remove them.
+            elif platform.system() == "Windows" and os.path.isdir(link_path):
+                try:
+                    os.rmdir(link_path)
+                    log("   - Removed existing directory junction.")
+                except OSError:
+                    # If rmdir fails, it's likely a real, populated directory. Use rmtree.
+                    log("   - rmdir failed, falling back to shutil.rmtree for populated directory.")
+                    shutil.rmtree(link_path)
+                    log("   - Removed directory with shutil.rmtree.")
+            # Standard directory removal for other OS.
+            elif os.path.isdir(link_path):
+                shutil.rmtree(link_path)
+                log("   - Removed existing directory.")
+            # Handle plain files.
+            else:
+                os.remove(link_path)
+                log("   - Removed existing file.")
         else:
             log("   - Nothing to remove. Path is clean.")
     except OSError as e:
-        log(f"❌ Failed to remove existing item at '{link_path}': {e}")
+        log(f"Error: Failed to remove existing item at '{link_path}': {e}")
         sys.exit(1)
 
     # Step 3: Create the appropriate type of link for the operating system.
@@ -93,7 +108,7 @@ def main(target_arg, link_arg):
         success = create_symlink_unix(target_path, link_path)
 
     if not success:
-        log("❌ Link creation process failed.")
+        log("Error: Link creation process failed.")
         sys.exit(1)
 
 if __name__ == "__main__":

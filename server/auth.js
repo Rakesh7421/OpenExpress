@@ -51,15 +51,17 @@ import { Strategy as TikTokStrategy } from 'passport-tiktok-auth';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables. Prioritize user-specific path on Windows.
+// Load environment variables. Prioritize user-specific path, then project secrets path.
 const userEnvPath = 'F:\\Codebase\\EnvSetup\\cred\\.env\\OpenExpress\\.env';
 const projectEnvPath = path.resolve(__dirname, '..', 'secrets', '.env');
 
 let envPathToUse;
 let loadedPathMessage;
+
+// Determine which .env file to use based on priority
 if (os.platform() === 'win32' && fs.existsSync(userEnvPath)) {
     envPathToUse = userEnvPath;
-    loadedPathMessage = `Loaded .env from user-specified path: ${userEnvPath}`;
+    loadedPathMessage = `Loaded .env from user-specific path: ${userEnvPath}`;
 } else if (fs.existsSync(projectEnvPath)) {
     envPathToUse = projectEnvPath;
     loadedPathMessage = `Loaded .env from project secrets: ${projectEnvPath}`;
@@ -70,7 +72,7 @@ if (os.platform() === 'win32' && fs.existsSync(userEnvPath)) {
 if (envPathToUse) {
     dotenv.config({ path: envPathToUse });
 } else {
-    dotenv.config(); // Load from system env
+    dotenv.config(); // Load from system env if no file is found
 }
 
 

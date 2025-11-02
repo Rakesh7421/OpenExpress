@@ -468,31 +468,36 @@ def run_all_services():
 def check_environment():
     print_header("Checking Environment")
     
-    dotenv_path_project = os.path.join(ROOT_DIR, 'secrets', '.env')
+    # Standard path for secrets
+    project_dotenv_path = os.path.join(ROOT_DIR, 'secrets', '.env')
     
     found_env_path = None
     if is_user_tempo() and os.path.exists(TEMPO_ENV_PATH):
+        # User-specific path takes precedence
         found_env_path = TEMPO_ENV_PATH
-    elif os.path.exists(dotenv_path_project):
-        found_env_path = dotenv_path_project
+    elif os.path.exists(project_dotenv_path):
+        found_env_path = project_dotenv_path
 
     checks = {
         "Python server script": os.path.exists(PYTHON_SERVER_SCRIPT_TXT),
         "package.json": os.path.exists(PACKAGE_JSON),
         "Server requirements.txt": os.path.exists(os.path.join(SERVER_DIR,'requirements.txt')),
         "Root requirements.txt": os.path.exists(os.path.join(ROOT_DIR,'requirements.txt')),
-        ".env file": found_env_path is not None
+        ".env file in secrets/ or custom path": found_env_path is not None
     }
+    
     for k,v in checks.items():
         print(f"- {k}: {'✅' if v else '❌'}")
     
     if found_env_path:
         log(f"Found .env file at: {found_env_path}")
+    else:
+        log("Warning: .env file not found in secrets/ or custom user path.")
         
     if all(checks.values()):
-        log("Environment OK")
+        log("\n✅ Environment checks passed.")
     else:
-        log("Some files are missing. Run dependency installation and check your .env file.")
+        log("\n⚠️ Some environment checks failed. Please review file structure and run dependency installation.")
 
 
 def log_errors_only():

@@ -39,7 +39,7 @@ The project includes an interactive task runner to simplify setup.
     ```bash
     python tasts_py.txt
     ```
-3.  From the menu, select option **3. Install All Dependencies**. This will:
+3.  From the menu, select option **1. Install All Dependencies**. This will:
     - Install Python packages from `server/requirements.txt` and `requirements.txt`.
     - Create a `package.json` file if it doesn't exist.
     - Install Node.js packages using `npm install`.
@@ -48,22 +48,17 @@ The project includes an interactive task runner to simplify setup.
 
 The application requires API keys and secrets to function correctly.
 
-1.  Navigate to the project root and create a `secrets` directory if it doesn't exist.
+1.  In the project root, create a `secrets` directory.
 2.  Inside `secrets`, create a file named `.env`.
-3.  Copy the contents from `.env.example.txt` into your new `.env` file.
+3.  Copy the contents from `.env.example.txt` into your new `secrets/.env` file.
 4.  Fill in the required values, especially `GEMINI_API_KEY`, `JWT_SECRET`, and `SESSION_SECRET`.
 
 > **Note for Special User 'Tempo' on Windows:**
 > For the user `Tempo`, the application is configured to use specific paths for environment variables and Node.js modules to keep the project directory clean and share dependencies.
 >
-> - **Environment File**: The application will first look for the `.env` file at the external path `F:\Codebase\EnvSetup\cred\.env\OpenExpress\.env`. Place your `.env` file there instead of in the project's `secrets` directory.
-> - **Node.js Modules**: Instead of a local `node_modules` folder, this setup uses a centralized directory. To create the required symbolic link, run the following command in a bash shell (like Git Bash):
->
-> ```bash
-> mkdir -p /f/installer_files/node_modules/openexpress/node_modules /f/Codebase/OpenExpress && rm -rf /f/Codebase/OpenExpress/node_modules && ln -s /f/installer_files/node_modules/openexpress/node_modules /f/Codebase/OpenExpress/node_modules && echo "✅ Symlink created successfully."
-> ```
->
-> The automated task runner (`python tasts_py.txt`) also handles this setup, but the command above can be used for manual configuration.
+> - **Environment File**: The application will first look for the `.env` file at the external path `F:\Codebase\EnvSetup\cred\.env\OpenExpress\.env` before checking the project's `secrets/.env` directory.
+> - **Node.js Modules**: Instead of a local `node_modules` folder, this setup uses a centralized directory. The task runner (`python tasts_py.txt`) automatically handles the creation of the required symbolic link.
+> - **Log Files**: Server logs will be stored in `F:\Codebase\EnvSetup\cred\.env\OpenExpress\logs`.
 
 ### 4. Running the Application
 
@@ -73,7 +68,7 @@ All services can be run concurrently using the task runner.
     ```bash
     python tasts_py.txt
     ```
-2.  Select option **6. Run All Services**. This will start:
+2.  Select option **5. Run All Services**. This will start:
     - The **Python API & Auth Server** (defaults to `http://localhost:8080`)
     - The **Frontend Dev Server** (defaults to `http://localhost:5173`)
 

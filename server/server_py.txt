@@ -14,38 +14,40 @@ import platform
 import json
 from authlib.integrations.flask_client import OAuth
 
-# Load environment variables.
-# Prioritize the user-specified path on Windows.
-dotenv_path_user = r'F:\Codebase\EnvSetup\cred\.env\OpenExpress\.env'
-dotenv_path_project = os.path.join(os.path.dirname(__file__), '..', 'secrets', '.env')
-loaded_path = None
+# --- Environment and Path Configuration ---
+SERVER_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(SERVER_DIR)
 
-if platform.system() == 'Windows' and os.path.exists(dotenv_path_user):
-    load_dotenv(dotenv_path=dotenv_path_user)
-    loaded_path = dotenv_path_user
-elif os.path.exists(dotenv_path_project):
-    load_dotenv(dotenv_path=dotenv_path_project)
-    loaded_path = dotenv_path_project
+# Standard paths
+default_dotenv_path = os.path.join(ROOT_DIR, 'secrets', '.env')
+default_log_dir = os.path.join(ROOT_DIR, 'logs')
+default_db_path = os.path.join(SERVER_DIR, 'db.json')
+
+# User-specific overrides for 'Tempo' on Windows
+dotenv_path_user = r'F:\Codebase\EnvSetup\cred\.env\OpenExpress\.env'
+log_dir_user = r'F:\Codebase\EnvSetup\cred\.env\OpenExpress\logs'
+
+# Determine which paths to use
+is_tempo_user = platform.system() == 'Windows' and os.path.exists(os.path.dirname(log_dir_user))
+
+dotenv_path = dotenv_path_user if is_tempo_user and os.path.exists(dotenv_path_user) else default_dotenv_path
+log_dir = log_dir_user if is_tempo_user else default_log_dir
+DB_PATH = default_db_path # Keep database local to server directory
+
+# Load environment variables
+loaded_path = None
+if os.path.exists(dotenv_path):
+    load_dotenv(dotenv_path=dotenv_path)
+    loaded_path = dotenv_path
 
 app = Flask(__name__)
-# Session is required for OAuth state.
 app.secret_key = os.environ.get('SESSION_SECRET', 'a_very_secret_key_for_sessions')
 CORS(app)
 
 # --- Logging Setup ---
-log_dir_user = r'F:\Codebase\EnvSetup\cred\.env\OpenExpress\logs'
-log_dir_project = os.path.join(os.path.dirname(__file__), '..', 'logs')
-LOG_DIR = log_dir_project  # Default
-
-if platform.system() == 'Windows':
-    # If the parent directory of the custom log path exists, use it.
-    if os.path.exists(os.path.dirname(log_dir_user)):
-        LOG_DIR = log_dir_user
-
-if not os.path.exists(LOG_DIR):
-    os.makedirs(LOG_DIR)
-LOG_FILE = os.path.join(LOG_DIR, 'server.log')
-
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+LOG_FILE = os.path.join(log_dir, 'server.log')
 
 handler = RotatingFileHandler(LOG_FILE, maxBytes=100000, backupCount=3)
 handler.setFormatter(logging.Formatter(
@@ -53,14 +55,14 @@ handler.setFormatter(logging.Formatter(
 ))
 app.logger.setLevel(logging.INFO)
 app.logger.addHandler(handler)
+
+app.logger.info("="*50)
 app.logger.info("Flask server process started.")
 app.logger.info(f"Using log file at: {LOG_FILE}")
-
-
 if loaded_path:
     app.logger.info(f"Loaded .env from: {loaded_path}")
 else:
-    app.logger.warning("Warning: No .env file found in standard locations. Using system environment variables.")
+    app.logger.warning("Warning: No .env file found. Using system environment variables.")
 
 # Load secrets from environment variables.
 JWT_SECRET = os.environ.get('JWT_SECRET', 'your-super-secret-jwt-key-here')
@@ -72,9 +74,7 @@ if GEMINI_API_KEY:
 else:
     app.logger.warning("GEMINI_API_KEY is not set. AI features will be disabled.")
 
-# --- User Database (re-implementing database.js) ---
-DB_PATH = os.path.join(os.path.dirname(__file__), 'db.json')
-
+# --- User Database ---
 def read_db():
     try:
         with open(DB_PATH, 'r') as f:
