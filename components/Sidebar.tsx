@@ -1,6 +1,7 @@
 import React from 'react';
 import { AppVersion } from '../types';
 import { CLIENT_SIDEBAR_ITEMS, DEVELOPER_SIDEBAR_ITEMS } from '../constants';
+import { Icon } from './common/Icon';
 
 interface SidebarProps {
   version: AppVersion;

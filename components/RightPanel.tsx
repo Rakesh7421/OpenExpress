@@ -1,6 +1,7 @@
 
 import React, { useMemo, useCallback } from 'react';
-import { AppVersion, DesignElement, ElementType, TextElement, ShapeElement } from '../types';
+// FIX: Added ImageElement for more specific type in onUpdateElement prop.
+import { AppVersion, DesignElement, ElementType, TextElement, ShapeElement, ImageElement } from '../types';
 import { getDesignSuggestions } from '../services/geminiService';
 import { Icon } from './common/Icon';
 
@@ -8,7 +9,8 @@ interface RightPanelProps {
   version: AppVersion;
   elements: DesignElement[];
   selectedElementId: string | null;
-  onUpdateElement: (id: string, updatedProperties: Partial<DesignElement>) => void;
+  // FIX: Updated updatedProperties to be a partial of a union of element types for type safety.
+  onUpdateElement: (id: string, updatedProperties: Partial<TextElement | ShapeElement | ImageElement>) => void;
   onSelectElement: (id: string | null) => void;
 }
 
@@ -148,11 +150,13 @@ const PropertyInput: React.FC<{label: string, children: React.ReactNode}> = ({ l
 
 const ElementPropertiesPanel: React.FC<{
     selectedElement: DesignElement;
-    onUpdateElement: (id: string, updatedProperties: Partial<DesignElement>) => void;
+    // FIX: Updated updatedProperties to be a partial of a union of element types for type safety.
+    onUpdateElement: (id: string, updatedProperties: Partial<TextElement | ShapeElement | ImageElement>) => void;
 }> = ({ selectedElement, onUpdateElement }) => {
     
     // FIX: Refactor handleUpdate to accept a partial properties object for better type safety.
-    const handleUpdate = (updatedProperties: Partial<DesignElement>) => {
+    // The parameter type is now more specific to what properties can be updated.
+    const handleUpdate = (updatedProperties: Partial<TextElement | ShapeElement>) => {
         onUpdateElement(selectedElement.id, updatedProperties);
     };
 
@@ -161,7 +165,7 @@ const ElementPropertiesPanel: React.FC<{
             <PropertyInput label="Content">
                 <textarea 
                     value={element.content} 
-                    // FIX: Pass an object to handleUpdate.
+                    // FIX: Pass an object to handleUpdate. This call is now type-safe.
                     onChange={e => handleUpdate({ content: e.target.value })}
                     rows={4}
                     className="w-full p-2 bg-gray-800 border border-gray-600 rounded-md text-sm"
@@ -171,7 +175,7 @@ const ElementPropertiesPanel: React.FC<{
                  <input 
                     type="number"
                     value={element.fontSize} 
-                    // FIX: Pass an object to handleUpdate.
+                    // FIX: Pass an object to handleUpdate. This call is now type-safe.
                     onChange={e => handleUpdate({ fontSize: parseInt(e.target.value, 10) || 0 })}
                     className="w-full p-2 bg-gray-800 border border-gray-600 rounded-md text-sm"
                 />
@@ -180,7 +184,7 @@ const ElementPropertiesPanel: React.FC<{
                  <input 
                     type="color"
                     value={element.color} 
-                    // FIX: Pass an object to handleUpdate.
+                    // FIX: Pass an object to handleUpdate. This call is now type-safe.
                     onChange={e => handleUpdate({ color: e.target.value })}
                     className="w-full h-10 p-1 bg-gray-800 border border-gray-600 rounded-md cursor-pointer"
                 />
@@ -194,7 +198,7 @@ const ElementPropertiesPanel: React.FC<{
                  <input 
                     type="color"
                     value={element.backgroundColor} 
-                    // FIX: Pass an object to handleUpdate.
+                    // FIX: Pass an object to handleUpdate. This call is now type-safe.
                     onChange={e => handleUpdate({ backgroundColor: e.target.value })}
                     className="w-full h-10 p-1 bg-gray-800 border border-gray-600 rounded-md cursor-pointer"
                 />
@@ -208,21 +212,21 @@ const ElementPropertiesPanel: React.FC<{
              <div className="space-y-3">
                  <div className="grid grid-cols-2 gap-3">
                      <PropertyInput label="X">
-                         {/* FIX: Pass an object to handleUpdate. */}
+                         {/* FIX: Pass an object to handleUpdate. This call is now type-safe. */}
                          <input type="number" value={Math.round(selectedElement.x)} onChange={e => handleUpdate({ x: parseInt(e.target.value, 10) || 0 })} className="w-full p-2 bg-gray-800 border border-gray-600 rounded-md text-sm" />
                      </PropertyInput>
                       <PropertyInput label="Y">
-                         {/* FIX: Pass an object to handleUpdate. */}
+                         {/* FIX: Pass an object to handleUpdate. This call is now type-safe. */}
                          <input type="number" value={Math.round(selectedElement.y)} onChange={e => handleUpdate({ y: parseInt(e.target.value, 10) || 0 })} className="w-full p-2 bg-gray-800 border border-gray-600 rounded-md text-sm" />
                      </PropertyInput>
                  </div>
                  <div className="grid grid-cols-2 gap-3">
                       <PropertyInput label="Width">
-                         {/* FIX: Pass an object to handleUpdate. */}
+                         {/* FIX: Pass an object to handleUpdate. This call is now type-safe. */}
                          <input type="number" value={Math.round(selectedElement.width)} onChange={e => handleUpdate({ width: parseInt(e.target.value, 10) || 0 })} className="w-full p-2 bg-gray-800 border border-gray-600 rounded-md text-sm" />
                      </PropertyInput>
                       <PropertyInput label="Height">
-                         {/* FIX: Pass an object to handleUpdate. */}
+                         {/* FIX: Pass an object to handleUpdate. This call is now type-safe. */}
                          <input type="number" value={Math.round(selectedElement.height)} onChange={e => handleUpdate({ height: parseInt(e.target.value, 10) || 0 })} className="w-full p-2 bg-gray-800 border border-gray-600 rounded-md text-sm" />
                      </PropertyInput>
                  </div>
