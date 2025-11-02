@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# A robust script to create a symbolic link, designed to be called from Python.
+# It ensures the target path is clean before creating the link.
+
+# --- Configuration ---
+set -e # Exit immediately if a command exits with a non-zero status.
+
+# --- Arguments ---
+CENTRAL_NODE_MODULES="$1"
+PROJECT_NODE_MODULES_LINK="$2"
+
+if [ -z "$CENTRAL_NODE_MODULES" ] || [ -z "$PROJECT_NODE_MODULES_LINK" ]; then
+    echo "❌ Error: Missing arguments."
+    echo "Usage: bash setup_node_link_sh.txt <target_directory> <link_name>"
+    exit 1
+fi
+
+echo "-> Preparing to link project node_modules."
+echo "   - Target: $CENTRAL_NODE_MODULES"
+echo "   - Link Name: $PROJECT_NODE_MODULES_LINK"
+
+# --- Main Logic ---
+# 1. Remove old node_modules in the project if it exists (as a link or directory)
+if [ -L "$PROJECT_NODE_MODULES_LINK" ] || [ -d "$PROJECT_NODE_MODULES_LINK" ]; then
+    echo "-> Found existing item at '$PROJECT_NODE_MODULES_LINK'. Removing it..."
+    rm -rf "$PROJECT_NODE_MODULES_LINK"
+    echo "   - Old item removed."
+    sleep 1 # Give the filesystem a moment to catch up
+fi
+
+# 2. Create a symbolic link from centralized node_modules to the project
+echo "-> Creating new symbolic link..."
+ln -s "$CENTRAL_NODE_MODULES" "$PROJECT_NODE_MODULES_LINK"
+echo "✅ Symlink created successfully."

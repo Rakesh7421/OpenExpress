@@ -57,62 +57,48 @@ def is_admin():
     return os.geteuid() == 0 if hasattr(os, 'geteuid') else True
 
 
-def setup_node_modules_link_powershell():
-    """Uses PowerShell to create the symbolic link, which is more robust on Windows."""
+def setup_node_modules_link_bash():
+    """Executes an external bash script to create the symbolic link."""
     if not is_user_tempo():
         return True
 
-    if not is_admin():
-        log("="*70)
-        log("⚠️ WARNING: Administrator privileges are required on Windows to create")
-        log("   symbolic links. This script will now attempt to use PowerShell,")
-        log("   but it is very likely to fail without elevated permissions.")
-        log("   If this step fails, please re-run your terminal as an Administrator.")
-        log("="*70)
-        time.sleep(3)
+    log("Setting up centralized node_modules link using dedicated bash script...")
 
-    log("Setting up centralized node_modules link using PowerShell...")
-
-    # 1. Robustly remove any existing link or directory using PowerShell.
-    if os.path.lexists(NODE_MODULES_LINK_PATH):
-        log(f"Found existing item at '{NODE_MODULES_LINK_PATH}'. Removing with PowerShell...")
-        # -ErrorAction SilentlyContinue prevents errors if the path doesn't exist.
-        remove_command = f'Remove-Item -LiteralPath "{NODE_MODULES_LINK_PATH}" -Recurse -Force -ErrorAction SilentlyContinue'
-        try:
-            subprocess.run(['powershell', '-Command', remove_command], check=True, capture_output=True)
-            # Give the filesystem a moment to catch up
-            time.sleep(1)
-            if not os.path.lexists(NODE_MODULES_LINK_PATH):
-                log("✅ Removal successful.")
-            else:
-                log("⚠️ Removal might have failed; path still exists.")
-        except subprocess.CalledProcessError as e:
-            log(f"❌ PowerShell removal command failed.")
-            log(f"   - Stderr: {e.stderr.decode('utf-8', 'ignore').strip()}")
-            return False
-
-    # 2. Ensure the target directory for the link exists.
-    try:
-        os.makedirs(TEMPO_NODE_MODULES_TARGET, exist_ok=True)
-    except Exception as e:
-        log(f"Failed to create target directory '{TEMPO_NODE_MODULES_TARGET}': {e}")
+    script_path = os.path.join(ROOT_DIR, 'setup_node_link_sh.txt')
+    if not os.path.exists(script_path):
+        log(f"❌ Critical Error: The helper script 'setup_node_link_sh.txt' was not found in the project root.")
         return False
-
-    # 3. Create the symbolic link using PowerShell's New-Item.
-    log(f"Creating symbolic link from '{NODE_MODULES_LINK_PATH}' to '{TEMPO_NODE_MODULES_TARGET}'")
-    link_command = f'New-Item -ItemType SymbolicLink -Path "{NODE_MODULES_LINK_PATH}" -Target "{TEMPO_NODE_MODULES_TARGET}"'
+        
+    # We must use 'bash' as the command, assuming it's in the user's PATH (which it is for Git Bash/MINGW64 users).
+    command = [
+        'bash',
+        script_path,
+        TEMPO_NODE_MODULES_TARGET,
+        NODE_MODULES_LINK_PATH
+    ]
+    
     try:
-        subprocess.run(['powershell', '-Command', link_command], check=True, capture_output=True)
-        log("✅ Successfully created symbolic link for node_modules.")
+        log(f"Executing command: {' '.join(command)}")
+        # We'll stream the output directly to the console so the user sees the bash script's progress.
+        process = subprocess.run(
+            command,
+            check=True,  # This will raise CalledProcessError if the script returns a non-zero exit code
+            text=True,
+            shell=platform.system() == 'Windows' # Shell=True helps find 'bash' in the PATH
+        )
+        log("✅ Bash script executed successfully.")
         return True
-    except subprocess.CalledProcessError as e:
-        log(f"❌ Error: PowerShell failed to create the symbolic link.")
-        log(f"   - This almost always means you need to run the script with")
-        log(f"     Administrator privileges.")
-        log(f"   - PowerShell Error: {e.stderr.decode('utf-8', 'ignore').strip()}")
-        return False
     except FileNotFoundError:
-        log("❌ Error: 'powershell' command not found. Please ensure PowerShell is installed and in your system's PATH.")
+        log("❌ Error: 'bash' command not found.")
+        log("   Please ensure you are running this script from a bash-compatible terminal like Git Bash on Windows,")
+        log("   and that 'bash' is in your system's PATH.")
+        return False
+    except subprocess.CalledProcessError as e:
+        log(f"❌ Error: The bash script failed with exit code {e.returncode}.")
+        log("   Please review the output from the script above for details.")
+        return False
+    except Exception as e:
+        log(f"❌ An unexpected error occurred while running the bash script: {e}")
         return False
 
 
@@ -187,9 +173,9 @@ def install_frontend_dependencies():
         log("Failed to prepare package.json, skipping npm install.")
         return
 
-    # Use the new PowerShell-based function for 'Tempo' user
+    # Use the new bash script function for 'Tempo' user
     if is_user_tempo():
-        if not setup_node_modules_link_powershell():
+        if not setup_node_modules_link_bash():
             log("❌ Failed to setup centralized node_modules. Aborting frontend dependency installation.")
             return
     elif os.path.lexists(NODE_MODULES_LINK_PATH):
