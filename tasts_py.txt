@@ -572,5 +572,8 @@ if __name__=="__main__":
     try:
         main()
     except (KeyboardInterrupt, SystemExit):
-        log("Exiting...")
+        log("\nExiting...")
+        sys.exit(0)
+    except EOFError:
+        log("\nExiting due to non-interactive mode or end of input.")
         sys.exit(0)
