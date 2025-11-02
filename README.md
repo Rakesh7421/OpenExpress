@@ -54,10 +54,9 @@ The application requires API keys and secrets to function correctly.
 4.  Fill in the required values, especially `GEMINI_API_KEY`, `JWT_SECRET`, and `SESSION_SECRET`.
 
 > **Note for Special User 'Tempo' on Windows:**
-> For the user `Tempo`, the application is configured to use specific paths for environment variables and Node.js modules to keep the project directory clean and share dependencies.
+> For the user `Tempo`, the application is configured to use specific paths for the environment file and logs.
 >
 > - **Environment File**: The application will first look for the `.env` file at the external path `F:\Codebase\EnvSetup\cred\.env\OpenExpress\.env` before checking the project's `secrets/.env` directory.
-> - **Node.js Modules**: Instead of a local `node_modules` folder, this setup uses a centralized directory. The task runner (`python tasts_py.txt`) automatically handles the creation of the required symbolic link.
 > - **Log Files**: Server logs will be stored in `F:\Codebase\EnvSetup\cred\.env\OpenExpress\logs`.
 
 ### 4. Running the Application
