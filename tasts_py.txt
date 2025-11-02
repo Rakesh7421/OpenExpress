@@ -62,25 +62,19 @@ def setup_node_modules_junction():
     if not is_user_tempo():
         return True
     if not is_admin():
-        log("⚠️ Junction creation requires admin privileges on Windows. Please re-run as an administrator.")
-        # We don't exit here; let mklink fail if it must, as sometimes it works.
+        log("⚠️ Symbolic link creation requires admin privileges on Windows. Please re-run this script as an administrator.")
+        # It might still work if Developer Mode is enabled, so we don't exit.
         pass
 
-    log("Setting up centralized node_modules junction...")
+    log("Setting up centralized node_modules link...")
 
-    # --- Robust Removal ---
+    # --- Robust Removal with Native Commands ---
     if os.path.lexists(NODE_MODULES_LINK_PATH):
-        log(f"Found existing item at '{NODE_MODULES_LINK_PATH}'. Attempting robust removal...")
-        try:
-            # Use specific removal methods based on type
-            if os.path.islink(NODE_MODULES_LINK_PATH) or os.path.isfile(NODE_MODULES_LINK_PATH):
-                log(f"'{NODE_MODULES_LINK_PATH}' is a file or link. Using os.remove().")
-                os.remove(NODE_MODULES_LINK_PATH)
-            elif os.path.isdir(NODE_MODULES_LINK_PATH):
-                log(f"'{NODE_MODULES_LINK_PATH}' is a directory. Using shutil.rmtree().")
-                shutil.rmtree(NODE_MODULES_LINK_PATH, ignore_errors=True)
-        except Exception as e:
-            log(f"⚠️ Removal attempt failed with an exception: {e}. This may be okay if the path is already gone.")
+        log(f"Found existing item at '{NODE_MODULES_LINK_PATH}'. Attempting robust removal with native commands...")
+        
+        removal_command = f'rmdir /s /q "{NODE_MODULES_LINK_PATH}"'
+        log(f"Executing removal command: {removal_command}")
+        subprocess.run(removal_command, shell=True, check=False, capture_output=True)
         
         # --- Wait and Verify Removal ---
         max_wait_seconds = 5
@@ -91,6 +85,7 @@ def setup_node_modules_junction():
         
         if os.path.lexists(NODE_MODULES_LINK_PATH):
             log(f"❌ Critical Error: Could not remove '{NODE_MODULES_LINK_PATH}' after {max_wait_seconds} seconds.")
+            log("   - Please check if a file explorer or terminal has a lock on this directory.")
             return False
         else:
             log("✅ Removal confirmed.")
@@ -102,15 +97,16 @@ def setup_node_modules_junction():
         log(f"Failed to create target directory '{TEMPO_NODE_MODULES_TARGET}': {e}")
         return False
 
-    # --- Retry Loop for Junction Creation ---
-    command = f'mklink /J "{NODE_MODULES_LINK_PATH}" "{TEMPO_NODE_MODULES_TARGET}"'
+    # --- Retry Loop for Symbolic Link Creation ---
+    log("Attempting to create a symbolic link (mklink /D) instead of a junction.")
+    command = f'mklink /D "{NODE_MODULES_LINK_PATH}" "{TEMPO_NODE_MODULES_TARGET}"'
     max_retries = 3
     for attempt in range(max_retries):
         log(f"Executing (Attempt {attempt + 1}/{max_retries}): {command}")
         try:
             # Use subprocess.run for better error capture
             subprocess.run(command, shell=True, check=True, capture_output=True, text=True)
-            log("✅ Successfully created junction for node_modules.")
+            log("✅ Successfully created symbolic link for node_modules.")
             return True
         except subprocess.CalledProcessError as e:
             log(f"⚠️ Attempt {attempt + 1} failed.")
@@ -118,11 +114,10 @@ def setup_node_modules_junction():
             log(f"   - Stdout: {e.stdout.strip()}")
             if attempt < max_retries - 1:
                 log("Retrying after a short delay...")
-                time.sleep(1) # Wait longer between retries
+                time.sleep(1)
             else:
-                log(f"❌ Error: Failed to create junction after {max_retries} attempts.")
-                log("   - This is often a Windows filesystem timing issue or a permissions problem.")
-                log("   - Please ensure no file explorers or terminals are open inside the project directory and try again.")
+                log(f"❌ Error: Failed to create symbolic link after {max_retries} attempts.")
+                log("   - This often requires running the script with Administrator privileges on Windows.")
                 return False
     return False
 
