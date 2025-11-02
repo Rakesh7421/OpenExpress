@@ -198,6 +198,22 @@ def login(name):
     redirect_uri = url_for(f'{name}_callback', _external=True)
     return client.authorize_redirect(redirect_uri)
 
+@app.route('/auth/facebook/callback-code-only')
+def facebook_callback_code_only():
+    code = request.args.get('code')
+    if not code:
+        return generate_auth_failure_response('meta', 'No code received from Facebook')
+    
+    # This endpoint is specifically for the developer tools to grab the code.
+    # It sends the code back to the parent window and closes itself.
+    return f"""
+      <script>
+        window.opener.postMessage({{ type: 'auth-code-received', platform: 'meta', code: '{code}' }}, '*');
+        window.close();
+      </script>
+      <h1>Code captured!</h1><p>You can close this window.</p>
+    """
+
 @app.route('/auth/facebook/callback')
 def facebook_callback():
     try:

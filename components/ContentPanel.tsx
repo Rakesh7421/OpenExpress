@@ -47,36 +47,36 @@ const initialAppConfig = {
             "dev": {
               "facebook_app": { "app_id": "", "app_secret": "", "page_id": "", "group_id": "" },
               "tokens": { "user": "", "page": "" },
-              "oauth": { "redirect_uri": "http://localhost:8080/", "scopes": "pages_manage_posts,publish_video,pages_read_engagement,pages_show_list,publish_to_groups,groups_access_member_info" }
+              "oauth": { "redirect_uri": "http://localhost:8080/auth/facebook/callback", "scopes": "pages_manage_posts,publish_video,pages_read_engagement,pages_show_list,publish_to_groups,groups_access_member_info" }
             },
             "live": {
               "facebook_app": { "app_id": "", "app_secret": "", "page_id": "", "group_id": "" },
               "tokens": { "user": "", "page": "" },
-              "oauth": { "redirect_uri": "http://localhost:8080/", "scopes": "pages_manage_posts,publish_video,pages_read_engagement,pages_show_list,publish_to_groups,groups_access_member_info" }
+              "oauth": { "redirect_uri": "http://localhost:8080/auth/facebook/callback", "scopes": "pages_manage_posts,publish_video,pages_read_engagement,pages_show_list,publish_to_groups,groups_access_member_info" }
             }
           },
           "Instagram": {
             "dev": {
               "facebook_app": { "app_id": "", "app_secret": "", "page_id": "", "group_id": "" },
               "tokens": { "user": "", "page": "" },
-              "oauth": { "redirect_uri": "http://localhost:8080/", "scopes": "instagram_basic,instagram_content_publish,pages_show_list" }
+              "oauth": { "redirect_uri": "http://localhost:8080/auth/facebook/callback", "scopes": "instagram_basic,instagram_content_publish,pages_show_list" }
             },
             "live": {
               "facebook_app": { "app_id": "", "app_secret": "", "page_id": "", "group_id": "" },
               "tokens": { "user": "", "page": "" },
-              "oauth": { "redirect_uri": "https://app.com/", "scopes": "instagram_basic,instagram_content_publish,pages_show_list" }
+              "oauth": { "redirect_uri": "https://app.com/auth/facebook/callback", "scopes": "instagram_basic,instagram_content_publish,pages_show_list" }
             }
           },
           "Pinterest": {
             "dev": {
               "facebook_app": { "app_id": "", "app_secret": "", "page_id": "", "group_id": "" }, // Note: Pinterest uses different field names, but the UI structure is generic.
               "tokens": { "user": "", "page": "" },
-              "oauth": { "redirect_uri": "http://localhost:8080/", "scopes": "pins:read,pins:write,boards:read,boards:write" }
+              "oauth": { "redirect_uri": "http://localhost:8080/auth/pinterest/callback", "scopes": "pins:read,pins:write,boards:read,boards:write" }
             },
             "live": {
               "facebook_app": { "app_id": "", "app_secret": "", "page_id": "", "group_id": "" },
               "tokens": { "user": "", "page": "" },
-              "oauth": { "redirect_uri": "https://app.com/", "scopes": "pins:read,pins:write,boards:read,boards:write" }
+              "oauth": { "redirect_uri": "https://app.com/auth/pinterest/callback", "scopes": "pins:read,pins:write,boards:read,boards:write" }
             }
           }
         }
@@ -89,36 +89,36 @@ const initialAppConfig = {
             "dev": {
               "facebook_app": { "app_id": "1268753368113520", "app_secret": "301460da7166044fe2f25515fde0144c", "page_id": "", "group_id": "" },
               "tokens": { "user": "EAASB7KnQYXABPZCnPkmeyAZCKLgJVoLTwISDbiM3E8mSde85YEwh9MiWGkFVKLU6Xbx8MB7GxdTZBmT9GsLONZCKP01eRzxXFEPsiX5qq709bUPofCObPf40JMRvvKZBPcKosZBMtavkzyUcNfXkpHgej2AAZAkcFVuY8jWCvLHDfmtAmBwqAtLzgHaVszmXCfHnNa8A9DH7r5dz3BZCA6YBHqXZCtWqm4Tgnppnh5ZBCGhWbcKy7JNR0qZCkUyMvHBN8Xl1TCgDmLBkNASoMnZBjTfZBN30ovCRNfyT3cgAD", "page": "EAASB7KnQYXABP6NI15Ma8I2KHOTx2eIm0qX2VYKJYNeqPRZBMO3UnVz8FJzQUoFZBt0iuZBKMJGQhQYZB4GV4KJLdR3ljuPX7QDsfq78hadgroGIzWodigVM9EiNkohJ6ZBw2DTMtZCIdqiraBmg3rY0FTUoFDYE5LZBtarL9qFUZAjtR7etVlpBCZCF5fUFAvp20jLRz9VOMUr4d" },
-              "oauth": { "redirect_uri": "http://localhost:8080/", "scopes": "pages_manage_posts,publish_video,pages_read_engagement,pages_show_list,publish_to_groups,groups_access_member_info" }
+              "oauth": { "redirect_uri": "http://localhost:8080/auth/facebook/callback", "scopes": "pages_manage_posts,publish_video,pages_read_engagement,pages_show_list,publish_to_groups,groups_access_member_info" }
             },
             "live": {
               "facebook_app": { "app_id": "1268753368113520", "app_secret": "301460da7166044fe2f25515fde0144c", "page_id": "", "group_id": "" },
               "tokens": { "user": "EAASB7KnQYXABPZCnPkmeyAZCKLgJVoLTwISDbiM3E8mSde85YEwh9MiWGkFVKLU6Xbx8MB7GxdTZBmT9GsLONZCKP01eRzxXFEPsiX5qq709bUPofCObPf40JMRvvKZBPcKosZBMtavkzyUcNfXkpHgej2AAZAkcFVuY8jWCvLHDfmtAmBwqAtLzgHaVszmXCfHnNa8A9DH7r5dz3BZCA6YBHqXZCtWqm4Tgnppnh5ZBCGhWbcKy7JNR0qZCkUyMvHBN8Xl1TCgDmLBkNASoMnZBjTfZBN30ovCRNfyT3cgAD", "page": "EAASB7KnQYXABP6NI15Ma8I2KHOTx2eIm0qX2VYKJYNeqPRZBMO3UnVz8FJzQUoFZBt0iuZBKMJGQhQYZB4GV4KJLdR3ljuPX7QDsfq78hadgroGIzWodigVM9EiNkohJ6ZBw2DTMtZCIdqiraBmg3rY0FTUoFDYE5LZBtarL9qFUZAjtR7etVlpBCZCF5fUFAvp20jLRz9VOMUr4d" },
-              "oauth": { "redirect_uri": "http://localhost:8080/", "scopes": "pages_manage_posts,publish_video,pages_read_engagement,pages_show_list,publish_to_groups,groups_access_member_info" }
+              "oauth": { "redirect_uri": "http://localhost:8080/auth/facebook/callback", "scopes": "pages_manage_posts,publish_video,pages_read_engagement,pages_show_list,publish_to_groups,groups_access_member_info" }
             }
           },
           "Instagram": {
             "dev": {
               "facebook_app": { "app_id": "", "app_secret": "", "page_id": "", "group_id": "" },
               "tokens": { "user": "", "page": "" },
-              "oauth": { "redirect_uri": "http://localhost:8080/", "scopes": "instagram_basic,instagram_content_publish,pages_show_list" }
+              "oauth": { "redirect_uri": "http://localhost:8080/auth/facebook/callback", "scopes": "instagram_basic,instagram_content_publish,pages_show_list" }
             },
             "live": {
               "facebook_app": { "app_id": "", "app_secret": "", "page_id": "", "group_id": "" },
               "tokens": { "user": "", "page": "" },
-              "oauth": { "redirect_uri": "https://app.com/", "scopes": "instagram_basic,instagram_content_publish,pages_show_list" }
+              "oauth": { "redirect_uri": "https://app.com/auth/facebook/callback", "scopes": "instagram_basic,instagram_content_publish,pages_show_list" }
             }
           },
           "Pinterest": {
             "dev": {
                 "facebook_app": { "app_id": "", "app_secret": "", "page_id": "", "group_id": "" },
                 "tokens": { "user": "", "page": "" },
-                "oauth": { "redirect_uri": "http://localhost:8080/", "scopes": "pins:read,pins:write,boards:read,boards:write" }
+                "oauth": { "redirect_uri": "http://localhost:8080/auth/pinterest/callback", "scopes": "pins:read,pins:write,boards:read,boards:write" }
             },
             "live": {
                 "facebook_app": { "app_id": "", "app_secret": "", "page_id": "", "group_id": "" },
                 "tokens": { "user": "", "page": "" },
-                "oauth": { "redirect_uri": "https://app.com/", "scopes": "pins:read,pins:write,boards:read,boards:write" }
+                "oauth": { "redirect_uri": "https://app.com/auth/pinterest/callback", "scopes": "pins:read,pins:write,boards:read,boards:write" }
             }
           }
         }
@@ -256,6 +256,7 @@ const PlatformConfiguration: React.FC<{
 }> = ({ platform, config, onBack, onSave }) => {
     const [stage, setStage] = useState<'dev' | 'live'>('dev');
     const [formState, setFormState] = useState(config || {});
+    const [scopeTestResult, setScopeTestResult] = useState<{status: 'idle' | 'testing' | 'success' | 'error', message: string} | null>(null);
 
     const handleInputChange = (section: string, field: string, value: string) => {
         setFormState((prev: any) => ({
@@ -270,6 +271,45 @@ const PlatformConfiguration: React.FC<{
         }));
     };
     
+    const handleTestScopes = async () => {
+        setScopeTestResult({ status: 'testing', message: 'Testing scopes...' });
+        
+        const currentConfig = formState[stage] || {};
+        const userToken = currentConfig.tokens?.user;
+        const appId = currentConfig.facebook_app?.app_id;
+        const appSecret = currentConfig.facebook_app?.app_secret;
+        const requiredScopes = currentConfig.oauth?.scopes;
+
+        if (!userToken || !appId || !appSecret) {
+            setScopeTestResult({ status: 'error', message: 'User Token, App ID, and Secret are required to test scopes.' });
+            return;
+        }
+
+        try {
+            const appAccessToken = `${appId}|${appSecret}`;
+            const url = `https://graph.facebook.com/debug_token?input_token=${userToken}&access_token=${appAccessToken}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            
+            if (!res.ok || data.error) throw new Error(data.error?.message || 'Request failed');
+            if (!data.data?.is_valid) throw new Error('Token is invalid.');
+            
+            const granted = new Set(data.data.scopes || []);
+            const required = new Set(requiredScopes.split(',').map((s: string) => s.trim()).filter(Boolean));
+            const missing = [...required].filter(scope => !granted.has(scope));
+
+            if (missing.length === 0) {
+                setScopeTestResult({ status: 'success', message: '✅ All required scopes are granted.' });
+            } else {
+                setScopeTestResult({ status: 'error', message: `⚠️ Missing scopes: ${missing.join(', ')}` });
+            }
+        } catch (e) {
+            const message = e instanceof Error ? e.message : "Unknown error";
+            setScopeTestResult({ status: 'error', message: `❌ Test failed: ${message}` });
+        }
+    };
+
+
     const currentConfig = formState[stage] || {};
 
     return (
@@ -308,7 +348,24 @@ const PlatformConfiguration: React.FC<{
                     <h4 className="font-semibold text-gray-300 mb-2 border-b border-gray-700 pb-1">OAuth Settings</h4>
                     <div className="space-y-3 mt-2">
                         <InputField label="Redirect URI" name="redirect_uri" value={currentConfig.oauth?.redirect_uri || ''} onChange={(e) => handleInputChange('oauth', 'redirect_uri', e.target.value)} />
-                        <InputField label="Scopes" name="scopes" value={currentConfig.oauth?.scopes || ''} onChange={(e) => handleInputChange('oauth', 'scopes', e.target.value)} isTextarea />
+                        <div>
+                            <InputField label="Scopes" name="scopes" value={currentConfig.oauth?.scopes || ''} onChange={(e) => handleInputChange('oauth', 'scopes', e.target.value)} isTextarea />
+                            <button
+                                onClick={handleTestScopes}
+                                disabled={scopeTestResult?.status === 'testing'}
+                                className="w-full mt-2 flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors border border-gray-600 hover:bg-gray-700 text-gray-300 disabled:opacity-50"
+                            >
+                                {scopeTestResult?.status === 'testing' ? <Icon name="loader" className="w-4 h-4 animate-spin" /> : <Icon name="sparkles" className="w-4 h-4" />}
+                                <span>Test Scopes</span>
+                            </button>
+                            {scopeTestResult && scopeTestResult.status !== 'testing' && (
+                                <div className={`mt-2 p-2 text-xs rounded-md font-mono ${
+                                    scopeTestResult.status === 'success' ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'
+                                }`}>
+                                    {scopeTestResult.message}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -333,9 +390,23 @@ const BrandingContent: React.FC = () => {
     const [appConfig, setAppConfig] = useState(initialAppConfig);
     const [currentUser, setCurrentUser] = useState(initialAppConfig.current_selection.user);
     const [currentBrand, setCurrentBrand] = useState(initialAppConfig.current_selection.brand);
+    const [stage, setStage] = useState<'dev' | 'live'>('dev');
+    const [validationResult, setValidationResult] = useState<{
+      status: 'idle' | 'loading' | 'success' | 'error';
+      messages: string[];
+    } | null>(null);
 
     const [connectedAccounts, setConnectedAccounts] = useState<Set<string>>(new Set());
     const [configPlatform, setConfigPlatform] = useState<string | null>(null);
+
+    const socialAccounts = useMemo(() => [
+        { id: 'facebook', name: 'Facebook', icon: 'facebook', authId: 'facebook' },
+        { id: 'instagram', name: 'Instagram', icon: 'instagram', authId: 'facebook' },
+        { id: 'pinterest', name: 'Pinterest', icon: 'pinterest', authId: 'pinterest' },
+        { id: 'x', name: 'X (Twitter)', icon: 'x', authId: 'twitter' },
+        { id: 'linkedin', name: 'LinkedIn', icon: 'linkedin', authId: 'linkedin' },
+        { id: 'tiktok', name: 'TikTok', icon: 'tiktok', authId: 'tiktok' },
+    ], []);
 
     // This effect handles the OAuth popup callback
     useEffect(() => {
@@ -343,8 +414,10 @@ const BrandingContent: React.FC = () => {
             const { type, platform, token } = event.data;
             if (type === 'auth-success' && platform && token) {
                 console.log(`Auth success for ${platform}`);
-                setConnectedAccounts(prev => new Set(prev).add(platform));
-                localStorage.setItem(`${platform}_jwt`, token);
+                // The platform ID from the server might be 'meta' for facebook/instagram
+                const accountId = socialAccounts.find(acc => acc.authId === platform || acc.id === platform)?.id || platform;
+                setConnectedAccounts(prev => new Set(prev).add(accountId));
+                localStorage.setItem(`${accountId}_jwt`, token);
             } else if (type === 'auth-failure') {
                 console.error(`Auth failed for ${platform}`);
                 alert(`Authentication with ${platform} failed. Please check the console on the auth server.`);
@@ -353,12 +426,47 @@ const BrandingContent: React.FC = () => {
 
         window.addEventListener('message', handleAuthMessage);
         return () => window.removeEventListener('message', handleAuthMessage);
-    }, []);
+    }, [socialAccounts]);
 
-    const handleConnect = (platformId: string) => {
-        const authUrl = `/auth/${platformId}`;
-        window.open(authUrl, '_blank', 'width=500,height=600');
+    const handleConnect = (platformName: string) => {
+        const socialAccount = socialAccounts.find(acc => acc.name === platformName);
+        const authId = socialAccount ? socialAccount.authId : platformName.toLowerCase();
+    
+        if (platformName === 'Facebook' || platformName === 'Instagram') {
+            const platformConfig = appConfig.users[currentUser]?.brands[currentBrand]?.[platformName]?.[stage];
+    
+            if (!platformConfig) {
+                alert(`Configuration for ${platformName} (${stage}) is missing. Please use the 'Configure' button to set it up.`);
+                return;
+            }
+            
+            const { app_id } = platformConfig.facebook_app || {};
+            const { redirect_uri, scopes } = platformConfig.oauth || {};
+    
+            if (!app_id || !redirect_uri || !scopes) {
+                alert(`Connection failed: App ID, Redirect URI, and Scopes for ${platformName} (${stage}) are all required. Please complete the configuration.\n\nIf the auth popup opens but shows an error, it's likely one of these values is incorrect in your Meta App settings.`);
+                return;
+            }
+    
+            const params = new URLSearchParams({
+                client_id: app_id,
+                redirect_uri: redirect_uri,
+                scope: scopes,
+                response_type: 'code',
+                state: `csrf_token_${Math.random().toString(36).substring(7)}`,
+            });
+    
+            const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?${params.toString()}`;
+            console.log(`Opening Meta auth URL: ${authUrl}`);
+            window.open(authUrl, '_blank', 'width=600,height=700');
+    
+        } else {
+            const authUrl = `/auth/${authId}`;
+            console.log(`Opening proxied auth URL: ${authUrl}`);
+            window.open(authUrl, '_blank', 'width=500,height=600');
+        }
     };
+    
 
     const handleDisconnect = (platformId: string) => {
         setConnectedAccounts(prev => {
@@ -372,6 +480,9 @@ const BrandingContent: React.FC = () => {
     const handleSavePlatformConfig = (platform: string, newConfig: any) => {
         setAppConfig(prev => {
             const newAppConfig = JSON.parse(JSON.stringify(prev)); // Deep copy
+            if (!newAppConfig.users[currentUser].brands[currentBrand]) {
+                newAppConfig.users[currentUser].brands[currentBrand] = {};
+            }
             newAppConfig.users[currentUser].brands[currentBrand][platform] = newConfig;
             newAppConfig.last_saved = new Date().toISOString();
             return newAppConfig;
@@ -395,6 +506,74 @@ const BrandingContent: React.FC = () => {
         }
     };
 
+    const handleValidateTokens = async () => {
+        setValidationResult({ status: 'loading', messages: ['Validating Facebook tokens...'] });
+
+        const platform = 'Facebook';
+        const config = appConfig.users[currentUser]?.brands[currentBrand]?.[platform]?.[stage];
+        
+        if (!config) {
+            setValidationResult({ status: 'error', messages: [`No Facebook configuration found for ${currentUser} > ${currentBrand} (${stage}).`] });
+            return;
+        }
+        
+        const { app_id, app_secret, page_id } = config.facebook_app || {};
+        const { user: userToken, page: pageToken } = config.tokens || {};
+    
+        const validationPromises = [];
+
+        // 1. User Token Validation
+        if (userToken && app_id && app_secret) {
+            const validateUserToken = async () => {
+                try {
+                    const appAccessToken = `${app_id}|${app_secret}`;
+                    const url = `https://graph.facebook.com/debug_token?input_token=${userToken}&access_token=${appAccessToken}`;
+                    const res = await fetch(url);
+                    const data = await res.json();
+                    if (data.error || !data.data?.is_valid) {
+                        throw new Error(data.error?.message || 'Token is invalid.');
+                    }
+                    return '✅ User Token is valid.';
+                } catch (e) {
+                    const message = e instanceof Error ? e.message : "Unknown error";
+                    return `❌ User Token Validation Failed: ${message}`;
+                }
+            };
+            validationPromises.push(validateUserToken());
+        } else {
+            validationPromises.push(Promise.resolve('⚠️ User Token cannot be validated (missing token, App ID, or App Secret).'));
+        }
+    
+        // 2. Page Token Validation
+        if (pageToken && page_id) {
+            const validatePageToken = async () => {
+                 try {
+                    const url = `https://graph.facebook.com/${page_id}?fields=name,id&access_token=${pageToken}`;
+                    const res = await fetch(url);
+                    const data = await res.json();
+                    if (data.error) {
+                        throw new Error(data.error.message);
+                    }
+                    return `✅ Page Token is valid for page: "${data.name}".`;
+                } catch (e) {
+                    const message = e instanceof Error ? e.message : "Unknown error";
+                    return `❌ Page Token Validation Failed: ${message}`;
+                }
+            };
+            validationPromises.push(validatePageToken());
+        } else {
+            validationPromises.push(Promise.resolve('⚠️ Page Token cannot be validated (missing token or Page ID).'));
+        }
+
+        const results = await Promise.all(validationPromises);
+        
+        const hasError = results.some(r => r.startsWith('❌'));
+        setValidationResult({
+            status: hasError ? 'error' : 'success',
+            messages: results
+        });
+    };
+
     if (configPlatform) {
         const platformConfigData = appConfig.users[currentUser]?.brands[currentBrand]?.[configPlatform] || {};
         return <PlatformConfiguration
@@ -404,15 +583,6 @@ const BrandingContent: React.FC = () => {
             onSave={handleSavePlatformConfig}
         />;
     }
-    
-    const socialAccounts = [
-        { id: 'facebook', name: 'Facebook', icon: 'facebook', authId: 'facebook' },
-        { id: 'instagram', name: 'Instagram', icon: 'instagram', authId: 'facebook' },
-        { id: 'pinterest', name: 'Pinterest', icon: 'pinterest', authId: 'pinterest' },
-        { id: 'x', name: 'X (Twitter)', icon: 'x', authId: 'twitter' },
-        { id: 'linkedin', name: 'LinkedIn', icon: 'linkedin', authId: 'linkedin' },
-        { id: 'tiktok', name: 'TikTok', icon: 'tiktok', authId: 'tiktok' },
-    ];
     
     const userOptions = Object.keys(appConfig.users).map(u => ({ value: u, label: u }));
     const brandOptions = currentUser ? Object.keys(appConfig.users[currentUser].brands).map(b => ({ value: b, label: b })) : [];
@@ -424,14 +594,52 @@ const BrandingContent: React.FC = () => {
                 <div className="mt-2 p-4 bg-gray-800/50 rounded-lg border border-gray-700/50 space-y-3">
                     <StyledSelect label="User" id="config-user" options={userOptions} value={currentUser} onChange={e => setCurrentUser(e.target.value)} />
                     <StyledSelect label="Brand" id="config-brand" options={brandOptions} value={currentBrand} onChange={e => setCurrentBrand(e.target.value)} />
+                     <div>
+                        <label className="block text-sm font-medium text-gray-400 mb-1">Stage</label>
+                        <div className="flex p-1 bg-gray-900 rounded-lg border border-gray-600">
+                            <button onClick={() => setStage('dev')} className={`flex-1 py-1 text-sm rounded-md transition-colors ${stage === 'dev' ? 'bg-brand-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}>
+                                Dev
+                            </button>
+                            <button onClick={() => setStage('live')} className={`flex-1 py-1 text-sm rounded-md transition-colors ${stage === 'live' ? 'bg-brand-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}>
+                                Live
+                            </button>
+                        </div>
+                    </div>
                     <button onClick={handleAddBrand} className="w-full text-sm text-brand-400 hover:text-brand-300 mt-1 text-left">
                         + Add New Brand
                     </button>
+                    <button 
+                        onClick={handleValidateTokens}
+                        disabled={validationResult?.status === 'loading' || !currentUser || !currentBrand}
+                        className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors border border-gray-600 hover:bg-gray-700 text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {validationResult?.status === 'loading' ? (
+                            <Icon name="loader" className="w-5 h-5 animate-spin" />
+                        ) : (
+                            <Icon name="check-circle" className="w-5 h-5" />
+                        )}
+                        <span>{validationResult?.status === 'loading' ? 'Validating...' : 'Validate Tokens'}</span>
+                    </button>
+
+                    {validationResult && validationResult.status !== 'loading' && (
+                        <div className="mt-3 p-3 bg-gray-900/50 rounded-md text-xs space-y-1 animate-fade-in">
+                            {validationResult.messages.map((msg, index) => (
+                                <p key={index} className={`font-mono ${
+                                    msg.startsWith('✅') ? 'text-green-400' :
+                                    msg.startsWith('❌') ? 'text-red-400' :
+                                    'text-yellow-400'
+                                }`}>
+                                    {msg}
+                                </p>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 
             <div>
                 <h3 className="text-md font-semibold text-gray-200">Platform Connections</h3>
+                 <p className="text-xs text-gray-500 mt-1 mb-2">Note: For 'Connect' to work, credentials in UI must match your backend's .env file.</p>
                 <div className="mt-2 space-y-2">
                     {socialAccounts.map(account => {
                         const isConnected = connectedAccounts.has(account.id);
@@ -450,7 +658,7 @@ const BrandingContent: React.FC = () => {
                                         Configure
                                     </button>
                                     <button 
-                                        onClick={() => isConnected ? handleDisconnect(account.id) : handleConnect(account.authId)}
+                                        onClick={() => isConnected ? handleDisconnect(account.id) : handleConnect(account.name)}
                                         disabled={!currentUser || !currentBrand}
                                         className={`text-xs font-semibold rounded-md py-1 px-3 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isConnected ? 'bg-red-900/60 hover:bg-red-800/70 text-red-300' : 'bg-brand-600 hover:bg-brand-500 text-white'}`}
                                     >
@@ -760,6 +968,7 @@ const ChecklistContent: React.FC = () => {
             setTestResults(prev => ({ ...prev, [id]: { status: 'success', message } }));
             handleToggleCheck(id); // Auto-check on success
         } catch (error) {
+            // FIX: Safely handle the caught error because the 'error' object is of type 'unknown' in a catch block.
             const message = error instanceof Error ? error.message : 'Test failed';
             setTestResults(prev => ({ ...prev, [id]: { status: 'error', message } }));
         }
@@ -1083,9 +1292,12 @@ const ServerContent: React.FC = () => {
         } catch (error) {
             console.error('Connection attempt failed:', error);
             setStatus('disconnected');
-            // FIX: The 'error' variable in a catch block is of type 'unknown'. We must perform a type check
-            // before accessing properties like 'message' to avoid runtime errors and satisfy TypeScript.
-            let message = error instanceof Error ? error.message : 'Connection failed. Is the server running?';
+            // FIX: Safely handle the caught error because the 'error' object is of type 'unknown' in a catch block.
+            let message = 'Connection failed. Is the server running?';
+            if (error instanceof Error) {
+                message = error.message;
+            }
+            
             // @ts-ignore
             if (window.aistudio && message.toLowerCase().includes('status: 404')) {
                 message = 'Connection failed. Note: Local server is not accessible from AI Studio.';
@@ -1107,9 +1319,12 @@ const ServerContent: React.FC = () => {
             setTestResult({ status: 'success', message: data.message || 'Successfully connected!' });
         } catch (error) {
             console.error('Connection test failed:', error);
-            // FIX: Safely handle the caught error by checking if it's an instance of Error.
-            // This allows us to access the 'message' property without causing a type error.
-            let message = error instanceof Error ? error.message : 'Connection failed. Is the server running?';
+            // FIX: Safely handle the caught error because the 'error' object is of type 'unknown' in a catch block.
+            let message = 'Connection failed. Is the server running?';
+            if (error instanceof Error) {
+                message = error.message;
+            }
+            
             // @ts-ignore
             if (window.aistudio && message.toLowerCase().includes('status: 404')) {
                 message = 'Connection failed. Note: Local server is not accessible from AI Studio.';
@@ -1198,77 +1413,73 @@ const ServerContent: React.FC = () => {
                     <span>{isLoadingLogs ? 'Loading Logs...' : 'View Server Logs'}</span>
                 </button>
 
-                {testResult && testResult.status !== 'idle' && (
-                    <div className={`mt-3 text-xs text-center p-2 rounded-md font-medium
-                        ${testResult.status === 'success' ? 'bg-green-900/50 text-green-300' : ''}
-                        ${testResult.status === 'error' ? 'bg-red-900/50 text-red-300' : ''}
-                        ${testResult.status === 'testing' ? 'bg-blue-900/50 text-blue-300' : ''}
-                    `}>
+                <button
+                    onClick={() => setIsAuthToolsVisible(!isAuthToolsVisible)}
+                    className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors border border-gray-600 hover:bg-gray-700 text-gray-300"
+                >
+                    <Icon name="users" className="w-5 h-5" />
+                    <span>{isAuthToolsVisible ? 'Hide' : 'Show'} Auth Tools</span>
+                </button>
+
+                {testResult && (
+                    <div className={`mt-3 p-2 text-center text-sm rounded-md animate-fade-in ${
+                        testResult.status === 'success' ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'
+                    }`}>
                         {testResult.message}
                     </div>
                 )}
+             </div>
 
-                {logs !== null && (
-                    <div className="mt-4 animate-fade-in">
-                        <div className="flex justify-between items-center mb-2">
-                             <h4 className="text-md font-semibold text-gray-200">Server Logs</h4>
-                             <button onClick={() => setLogs(null)} className="text-xs text-gray-400 hover:text-white p-1 rounded-md hover:bg-gray-700">Hide</button>
-                        </div>
-                        <pre className="p-3 bg-gray-900 rounded-md text-xs font-mono overflow-x-auto max-h-80 text-gray-300 border border-gray-700">
-                            {logs}
-                        </pre>
-                    </div>
-                )}
-            </div>
-
-            <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                <div className="flex justify-between items-center cursor-pointer" onClick={() => setIsAuthToolsVisible(!isAuthToolsVisible)}>
-                    <h3 className="text-md font-semibold text-gray-200">Platform Authentication & Token Tools</h3>
-                    <Icon name={isAuthToolsVisible ? 'minus' : 'plus'} className="w-5 h-5 text-gray-400" />
+            {isAuthToolsVisible && (
+              <div className="animate-fade-in">
+                <PlatformAuthTools />
+              </div>
+            )}
+             
+            {logs && (
+                <div className="mt-4">
+                    <h4 className="text-sm font-semibold mb-2">Logs</h4>
+                    <pre className="p-3 rounded-md text-xs font-mono overflow-y-auto max-h-80 bg-gray-900 border border-gray-700/80">
+                        {logs}
+                    </pre>
                 </div>
-                 {isAuthToolsVisible && (
-                    <div className="mt-4 animate-fade-in">
-                        <PlatformAuthTools />
-                    </div>
-                 )}
-            </div>
-            
-            <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                <h3 className="text-md font-semibold text-gray-200 mb-3">Server Setup Guide</h3>
-                <div className="space-y-2">
+            )}
+
+             <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                <h3 className="text-md font-semibold text-gray-200 mb-3">Local Setup Guide</h3>
+                 <div className="space-y-2">
                     {setupSteps.map(step => (
-                         <div key={step.id} className="relative">
+                        <div key={step.id} className="relative group">
                             <div 
-                                className="flex items-center gap-3 cursor-pointer p-2.5 rounded-md hover:bg-gray-900/50"
+                                className="flex items-center justify-between p-2.5 rounded-md bg-gray-900/50 hover:bg-gray-800/50 transition-colors cursor-pointer"
                                 onClick={() => handleToggleStep(step.id)}
                             >
-                                <Icon
-                                    name={completedSteps.has(step.id) ? 'check-circle' : 'circle'}
-                                    className={`w-5 h-5 flex-shrink-0 transition-colors ${completedSteps.has(step.id) ? 'text-green-500' : 'text-gray-600'}`}
-                                />
-                                <span className={`text-sm font-medium ${completedSteps.has(step.id) ? 'line-through text-gray-500' : 'text-gray-300'}`}>
-                                    {step.text}
-                                </span>
-                                <button
-                                    onClick={(e) => handleInfoClick(e, step.id)}
-                                    className="ml-auto text-gray-500 hover:text-brand-400 p-1 rounded-full"
-                                    aria-label={`More info about ${step.text}`}
-                                >
+                                <div className="flex items-center gap-3">
+                                    <Icon
+                                        name={completedSteps.has(step.id) ? 'check-circle' : 'circle'}
+                                        className={`w-5 h-5 flex-shrink-0 transition-colors ${completedSteps.has(step.id) ? 'text-green-500' : 'text-gray-600'}`}
+                                    />
+                                    <span className={`text-sm font-medium ${completedSteps.has(step.id) ? 'line-through text-gray-500' : 'text-gray-300'}`}>
+                                        {step.text}
+                                    </span>
+                                </div>
+                                 <button onClick={(e) => handleInfoClick(e, step.id)} className="p-1 rounded-full text-gray-500 hover:bg-gray-700 hover:text-white z-20">
                                     <Icon name="info" className="w-4 h-4" />
                                 </button>
                             </div>
                             {visibleTooltip === step.id && (
-                                <div className="mt-1 ml-10 p-3 bg-gray-900 rounded-md border border-gray-700 text-sm animate-fade-in">
-                                    {typeof step.details === 'string' ? <p className="text-gray-400">{step.details}</p> : step.details}
+                                <div className="absolute left-0 right-0 top-full mt-1 p-3 text-xs bg-gray-900 border border-gray-600 rounded-lg shadow-lg z-10 animate-fade-in">
+                                    {typeof step.details === 'string' ? <p>{step.details}</p> : step.details}
                                 </div>
                             )}
                         </div>
                     ))}
                 </div>
-            </div>
+             </div>
         </div>
     );
 };
+
 
 const ContentPanel: React.FC<ContentPanelProps> = ({ activeItem, onClose, version, pushedFeatures, onTogglePushFeature, onAddElement }) => {
   const contentMap: { [key: string]: React.ReactNode } = {
@@ -1276,40 +1487,29 @@ const ContentPanel: React.FC<ContentPanelProps> = ({ activeItem, onClose, versio
     text: <TextContent onAddElement={onAddElement} />,
     images: <ImagesContent />,
     shapes: <ShapesContent onAddElement={onAddElement} />,
-    ai: <ApiActionCenter />,
+    planner: <ContentPlanner />,
+    ai: <AiSuggestContent />,
     branding: <BrandingContent />,
     collaboration: <CollaborationContent />,
     'version-control': <VersionControlContent />,
     integrations: <IntegrationsContent />,
-    push: <PushContent pushedFeatures={pushedFeatures} onTogglePushFeature={onTogglePushFeature} />,
     server: <ServerContent />,
     checklist: <ChecklistContent />,
-    planner: <ContentPlanner />,
+    push: <PushContent pushedFeatures={pushedFeatures} onTogglePushFeature={onTogglePushFeature} />,
   };
-
-  const currentItem = [...DEVELOPER_SIDEBAR_ITEMS, ...CLIENT_SIDEBAR_ITEMS].find(
-    (item) => item.id === activeItem
-  );
-
-  const renderContent = () => {
-    return contentMap[activeItem] || <div className="p-4">Select an item from the sidebar.</div>;
-  };
+  
+  const { label } = [...DEVELOPER_SIDEBAR_ITEMS, ...CLIENT_SIDEBAR_ITEMS].find(item => item.id === activeItem) || { label: 'Panel' };
 
   return (
-    <aside className="w-96 bg-gray-900 border-l border-gray-700/50 flex flex-col flex-shrink-0 animate-slide-in">
-      <header className="flex items-center justify-between p-4 border-b border-gray-700/50 h-16 flex-shrink-0">
-        {currentItem && (
-          <div className="flex items-center gap-3">
-            <div className="w-6 h-6 text-brand-400">{currentItem.icon}</div>
-            <h2 className="text-lg font-semibold text-white">{currentItem.label}</h2>
-          </div>
-        )}
-        <button onClick={onClose} className="p-2 text-gray-500 rounded-full hover:bg-gray-700/50 hover:text-white transition-colors">
+    <aside className="w-96 bg-gray-900 border-r border-gray-700/50 flex flex-col flex-shrink-0 animate-slide-in-left">
+      <header className="flex items-center justify-between p-3 border-b border-gray-700/50 h-16 flex-shrink-0">
+        <h2 className="text-lg font-semibold">{label}</h2>
+        <button onClick={onClose} className="p-2 text-gray-400 hover:text-white rounded-full hover:bg-gray-700/50 transition-colors">
           <Icon name="x" className="w-5 h-5" />
         </button>
       </header>
-      <div className="flex-grow overflow-y-auto">
-        {renderContent()}
+      <div className="flex-1 overflow-y-auto">
+        {contentMap[activeItem] || <div className="p-4">Content not found.</div>}
       </div>
     </aside>
   );

@@ -5,6 +5,7 @@ import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import Canvas from './components/Canvas';
 import RightPanel from './components/RightPanel';
+// FIX: Module '"./components/ContentPanel"' has no default export. Added default export in ContentPanel.tsx
 import ContentPanel from './components/ContentPanel';
 
 export default function App(): React.ReactElement {
