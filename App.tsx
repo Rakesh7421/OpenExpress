@@ -1,5 +1,4 @@
-
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { AppVersion, DesignElement } from './types';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
@@ -10,11 +9,33 @@ import ShareModal from './components/ShareModal';
 
 export default function App(): React.ReactElement {
   const [version, setVersion] = useState<AppVersion>(AppVersion.DEVELOPER);
-  const [activeSidebarItem, setActiveSidebarItem] = useState<string | null>('server');
+  const [activeSidebarItem, setActiveSidebarItem] = useState<string | null>('planner');
   const [pushedFeatures, setPushedFeatures] = useState<Set<string>>(new Set());
   const [canvasElements, setCanvasElements] = useState<DesignElement[]>([]);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [serverStatus, setServerStatus] = useState<'connecting' | 'online' | 'offline'>('connecting');
+
+  useEffect(() => {
+    const checkServerStatus = async () => {
+      try {
+        const response = await fetch('http://localhost:8080/api/status');
+        if (response.ok) {
+          setServerStatus('online');
+        } else {
+          setServerStatus('offline');
+        }
+      } catch (error) {
+        setServerStatus('offline');
+      }
+    };
+
+    checkServerStatus(); // Initial check
+    const intervalId = setInterval(checkServerStatus, 5000); // Check every 5 seconds
+
+    return () => clearInterval(intervalId); // Cleanup on component unmount
+  }, []);
+
 
   const handleVersionChange = useCallback((newVersion: AppVersion) => {
     setVersion(newVersion);
@@ -66,6 +87,7 @@ export default function App(): React.ReactElement {
         onVersionChange={handleVersionChange}
         elements={canvasElements}
         onShare={() => setIsShareModalOpen(true)}
+        serverStatus={serverStatus}
       />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
