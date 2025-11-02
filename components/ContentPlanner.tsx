@@ -1,147 +1,152 @@
-import React, { useState, useCallback, useEffect } from 'react';
+
+import React, { useState, useCallback } from 'react';
 import { Icon } from './common/Icon';
-import { initialAppConfig } from '../config/appConfig';
 import CalendarView from './CalendarView';
 import SchedulePostModal from './SchedulePostModal';
+import { PlatformName } from './BrandingContent';
+import { getPostIdeas } from '../services/geminiService';
 
 export interface ScheduledPost {
-    id: string;
-    content: string;
-    accounts: { id: string; name: string; platform: string; brand: string }[];
-    scheduledAt: Date;
-    status: 'scheduled' | 'posted' | 'failed';
+  id: string;
+  platforms: PlatformName[];
+  content: string;
+  imageUrl?: string;
+  scheduledAt: Date;
+  status: 'scheduled' | 'posted' | 'failed';
 }
 
-export interface Account {
-    id: string; // e.g., pageId for Facebook
-    name: string;
-    platform: 'Meta' | 'Instagram';
-    brand: string;
-    connected: boolean;
-}
+const initialPosts: ScheduledPost[] = [
+    {
+      id: 'post-1',
+      platforms: ['Meta', 'Instagram'],
+      content: 'Check out our new summer collection!',
+      scheduledAt: new Date(new Date().setDate(new Date().getDate() + 2)),
+      status: 'scheduled'
+    },
+    {
+      id: 'post-2',
+      platforms: ['X'],
+      content: 'A quick update on our opening hours.',
+      scheduledAt: new Date(new Date().setDate(new Date().getDate() + 5)),
+      status: 'scheduled'
+    },
+];
 
 const ContentPlanner: React.FC = () => {
-    const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>([]);
-    const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-    const [groupedAccounts, setGroupedAccounts] = useState<Record<string, Account[]>>({});
-    const [isAccountsLoading, setIsAccountsLoading] = useState(true);
+  const [posts, setPosts] = useState<ScheduledPost[]>(initialPosts);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedPost, setSelectedPost] = useState<ScheduledPost | null>(null);
+  const [view, setView] = useState<'calendar' | 'list'>('calendar');
+  const [currentDate, setCurrentDate] = useState(new Date());
 
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [ideas, setIdeas] = useState<string[]>([]);
+  const [ideasLoading, setIdeasLoading] = useState(false);
+  const [ideasError, setIdeasError] = useState<string | null>(null);
 
-     useEffect(() => {
-        const fetchAccounts = async () => {
-            setIsAccountsLoading(true);
-            const allGroupedAccounts: Record<string, Account[]> = {};
-            const appConfig = initialAppConfig;
+  const handleFetchIdeas = useCallback(async () => {
+      setIdeasLoading(true);
+      setIdeasError(null);
+      try {
+          // In a real app, brand and platform would be dynamic from the app's context
+          const fetchedIdeas = await getPostIdeas("MV", "Meta");
+          setIdeas(fetchedIdeas);
+      } catch (e) {
+          if (e instanceof Error) {
+              setIdeasError(e.message);
+          } else {
+              setIdeasError("An unknown error occurred.");
+          }
+      } finally {
+          setIdeasLoading(false);
+      }
+  }, []);
 
-            for (const user of Object.values(appConfig.users)) {
-                for (const [brandName, brandConfig] of Object.entries(user.brands)) {
-                    const userToken = brandConfig.platforms?.Meta?.dev?.tokens?.user || brandConfig.platforms?.Meta?.live?.tokens?.user;
-                    const isConnected = !!userToken;
-                    
-                    if (brandConfig.platforms.Meta || brandConfig.platforms.Instagram) {
-                         const brandAccounts: Account[] = [];
-                        // Placeholder for fetching pages. In a real app, this would be an API call.
-                        // Let's create some mock data based on connection status.
-                        if (isConnected) {
-                            brandAccounts.push({ id: `${brandName}-fb1`, name: `${brandName} FB Page`, platform: 'Meta', brand: brandName, connected: true });
-                             if (brandConfig.platforms.Instagram) {
-                                brandAccounts.push({ id: `${brandName}-ig1`, name: `${brandName} IG Profile`, platform: 'Instagram', brand: brandName, connected: true });
-                            }
-                        } else {
-                            brandAccounts.push({ id: `${brandName}-fb1`, name: `${brandName} FB Page`, platform: 'Meta', brand: brandName, connected: false });
-                        }
-                         allGroupedAccounts[brandName] = brandAccounts;
-                    }
-                }
-            }
-            setGroupedAccounts(allGroupedAccounts);
-            setIsAccountsLoading(false);
-        };
 
-        fetchAccounts();
-    }, []);
+  const handleOpenModal = (post?: ScheduledPost) => {
+    setSelectedPost(post || null);
+    setIsModalOpen(true);
+  };
 
-    const handleSelectDate = (date: Date) => {
-        setSelectedDate(date);
-        setIsModalOpen(true);
-    };
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedPost(null);
+  };
 
-    const handleSchedulePost = async (
-        selectedAccounts: Set<string>,
-        baseContent: string,
-        contentOverrides: Record<string, string>,
-        dateTime: string
-    ) => {
-        if (!baseContent || selectedAccounts.size === 0 || !dateTime) {
-            setStatusMessage({ type: 'error', message: 'Content, at least one account, and a date/time are required.' });
-            return false;
-        }
+  const handleSavePost = (post: ScheduledPost) => {
+    setPosts(prevPosts => {
+      const existing = prevPosts.find(p => p.id === post.id);
+      if (existing) {
+        return prevPosts.map(p => p.id === post.id ? post : p);
+      }
+      return [...prevPosts, post];
+    });
+    handleCloseModal();
+  };
 
-        const allAccounts = Object.values(groupedAccounts).flat();
-        const accountsToPost = allAccounts.filter(acc => selectedAccounts.has(acc.id));
-
-        const promises = accountsToPost.map(account => {
-            const content = contentOverrides[account.id] || baseContent;
-            const token = localStorage.getItem('meta_jwt');
-            return fetch('/api/schedule-post', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({
-                    accountId: account.id,
-                    platform: account.platform,
-                    content: content,
-                    scheduledAt: new Date(dateTime).toISOString(),
-                }),
-            }).then(res => res.json().then(data => ({ ok: res.ok, data, accountName: account.name })));
-        });
-
-        const results = await Promise.all(promises);
-        const successes = results.filter(r => r.ok);
-        const failures = results.filter(r => !r.ok);
-
-        if (failures.length > 0) {
-            const failedNames = failures.map(f => f.accountName).join(', ');
-            setStatusMessage({ type: 'error', message: `Failed to schedule for: ${failedNames}.` });
-             return false;
-        } else {
-            setStatusMessage({ type: 'success', message: `Successfully scheduled post for ${successes.length} account(s)!` });
-            // Add to calendar view
-            const newPost: ScheduledPost = {
-                id: `post-${Date.now()}`,
-                content: baseContent,
-                accounts: accountsToPost,
-                scheduledAt: new Date(dateTime),
-                status: 'scheduled'
-            };
-            setScheduledPosts(prev => [...prev, newPost]);
-            return true; // Indicate success to close modal
-        }
-    };
-    
-    return (
-        <div className="p-4 text-gray-300 h-full flex flex-col">
-            <h3 className="text-md font-semibold text-gray-200 mb-4">Content Planner</h3>
-            {statusMessage && (
-                <div className={`mb-4 p-2 text-xs rounded-md text-center ${statusMessage.type === 'success' ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'}`}>
-                    {statusMessage.message}
-                </div>
-            )}
-            <CalendarView posts={scheduledPosts} onSelectDate={handleSelectDate} />
-            
-            {isModalOpen && selectedDate && (
-                <SchedulePostModal
-                    isOpen={isModalOpen}
-                    onClose={() => setIsModalOpen(false)}
-                    selectedDate={selectedDate}
-                    groupedAccounts={groupedAccounts}
-                    isAccountsLoading={isAccountsLoading}
-                    onSchedule={handleSchedulePost}
-                />
-            )}
+  return (
+    <div className="p-4 h-full flex flex-col">
+      <div className="flex justify-between items-center mb-4 flex-shrink-0">
+        <h2 className="text-xl font-bold">Content Planner</h2>
+        <div className="flex items-center gap-2">
+            <button 
+                onClick={handleFetchIdeas}
+                disabled={ideasLoading}
+                className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-md transition-colors disabled:opacity-50"
+            >
+                <Icon name="wand" className="w-4 h-4" />
+                <span>Get Post Ideas</span>
+            </button>
+            <button onClick={() => handleOpenModal()} className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-500 rounded-md transition-colors">
+                <Icon name="plus" className="w-4 h-4" />
+                <span>Schedule Post</span>
+            </button>
         </div>
-    );
+      </div>
+
+      {ideasError && <p className="text-sm text-red-400 mb-4">{ideasError}</p>}
+      {ideasLoading && <p className="text-sm text-blue-400 mb-4">Generating ideas with AI...</p>}
+      {ideas.length > 0 && (
+          <div className="mb-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700 flex-shrink-0">
+              <h3 className="text-sm font-semibold mb-2">AI Generated Ideas:</h3>
+              <ul className="list-disc list-inside text-sm text-gray-400 space-y-1">
+                  {ideas.map((idea, index) => <li key={index}>{idea}</li>)}
+              </ul>
+          </div>
+      )}
+
+      <div className="flex justify-center mb-4 flex-shrink-0">
+          <div className="flex items-center p-1 bg-gray-900 rounded-full border border-gray-700">
+              <button onClick={() => setView('calendar')} className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors duration-300 ${view === 'calendar' ? 'bg-brand-600 text-white' : 'text-gray-400 hover:text-white'}`}>
+                  Calendar
+              </button>
+              <button onClick={() => setView('list')} className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors duration-300 ${view === 'list' ? 'bg-brand-600 text-white' : 'text-gray-400 hover:text-white'}`}>
+                  List
+              </button>
+          </div>
+      </div>
+      
+      <div className="flex-1 overflow-hidden">
+          {view === 'calendar' ? (
+              <CalendarView
+                  posts={posts}
+                  onSelectPost={handleOpenModal}
+                  currentDate={currentDate}
+                  onNavigate={setCurrentDate}
+              />
+          ) : (
+             <div className="text-gray-400 p-4">List view is not implemented yet.</div>
+          )}
+      </div>
+
+      {isModalOpen && (
+        <SchedulePostModal
+          post={selectedPost}
+          onClose={handleCloseModal}
+          onSave={handleSavePost}
+        />
+      )}
+    </div>
+  );
 };
 
 export default ContentPlanner;
