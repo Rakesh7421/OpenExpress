@@ -7,7 +7,6 @@ import json
 import getpass
 import shutil
 import ctypes
-import time
 from datetime import datetime
 
 # --- Configuration ---
@@ -18,11 +17,14 @@ FRONTEND_DIR = ROOT_DIR
 PYTHON_SERVER_SCRIPT_TXT = os.path.join(SERVER_DIR, 'server_py.txt')
 PACKAGE_JSON = os.path.join(FRONTEND_DIR, 'package.json')
 NODE_MODULES_LINK_PATH = os.path.join(FRONTEND_DIR, 'node_modules')
+SYMLINK_MANAGER_SCRIPT = os.path.join(ROOT_DIR, 'symlink_manager_py.txt')
+
 
 # --- Configuration for 'Tempo' user on Windows ---
 TEMPO_PYTHON_EXECUTABLE = os.path.join('D:\\', 'installer_files', '.venv', 'Scripts', 'python.exe')
 TEMPO_ENV_PATH = os.path.join('F:\\', 'Codebase', 'EnvSetup', 'cred', '.env', 'OpenExpress', '.env')
 TEMPO_LOGS_DIR = os.path.join('F:\\', 'Codebase', 'EnvSetup', 'cred', '.env', 'OpenExpress', 'logs')
+TEMPO_NODE_MODULES_TARGET = os.path.join('D:\\', 'installer_files', 'node_modules', 'OpenExpress', 'node_modules')
 
 
 # --- Helper Functions ---
@@ -297,17 +299,37 @@ def install_frontend_dependencies():
         log("Failed to prepare package.json, skipping npm install.")
         return
 
-    # Always install locally. Remove existing node_modules link or directory first.
-    if os.path.lexists(NODE_MODULES_LINK_PATH):
-        log(f"Removing existing node_modules from project directory: {NODE_MODULES_LINK_PATH}")
+    if is_user_tempo():
+        log("User 'Tempo' on Windows detected. Setting up symlink for node_modules.")
+        if not is_admin():
+            log("⚠️ Warning: Not running as Administrator. Symlink creation might fail.")
+            log("   Please re-run this script in a terminal with Administrator privileges.")
+        
+        if not os.path.exists(SYMLINK_MANAGER_SCRIPT):
+             log(f"❌ Symlink manager script not found at '{SYMLINK_MANAGER_SCRIPT}'. Aborting.")
+             return
+             
         try:
-            if os.path.isdir(NODE_MODULES_LINK_PATH) and not os.path.islink(NODE_MODULES_LINK_PATH):
-                 shutil.rmtree(NODE_MODULES_LINK_PATH)
-            else:
-                 os.remove(NODE_MODULES_LINK_PATH)
+            log(f"Executing symlink manager: {PYTHON_EXECUTABLE} {SYMLINK_MANAGER_SCRIPT} ...")
+            # Ensure paths are passed correctly for the subprocess
+            subprocess.run(
+                [PYTHON_EXECUTABLE, SYMLINK_MANAGER_SCRIPT, TEMPO_NODE_MODULES_TARGET, NODE_MODULES_LINK_PATH],
+                check=True
+            )
+            log("Symlink setup complete.")
+        except subprocess.CalledProcessError as e:
+            log(f"❌ Symlink manager script failed with exit code {e.returncode}. Cannot proceed with npm install.")
+            return
         except Exception as e:
-            log(f"Failed to remove node_modules: {e}")
-    
+            log(f"❌ An unexpected error occurred while running symlink manager: {e}")
+            return
+    else:
+        log("Standard user detected. Installing node_modules locally.")
+        # Clean up any existing symlink in case user switched from 'Tempo'
+        if os.path.islink(NODE_MODULES_LINK_PATH):
+            log(f"Removing existing symlink at {NODE_MODULES_LINK_PATH}")
+            os.remove(NODE_MODULES_LINK_PATH)
+
     log("Cleaning npm cache...")
     subprocess.run(['npm', 'cache', 'clean', '--force'], cwd=FRONTEND_DIR, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     

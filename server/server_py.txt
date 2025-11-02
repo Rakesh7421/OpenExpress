@@ -398,7 +398,7 @@ def get_ai_post_ideas(current_user):
         response = model.generate_content(full_prompt)
         
         # Split the text response into a list of ideas
-        ideas = [idea.strip() for idea in response.text.split('\\n') if idea.strip()]
+        ideas = [idea.strip() for idea in response.text.split('\n') if idea.strip()]
         
         return jsonify({'ideas': ideas})
 
