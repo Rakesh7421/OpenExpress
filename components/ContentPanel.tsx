@@ -1,75 +1,86 @@
-
 import React from 'react';
+import { ElementType } from '../types';
+import ContentPlanner from './ContentPlanner';
 import BrandingContent from './BrandingContent';
 import FeatureAnalysisContent from './FeatureAnalysisContent';
-import ContentPlanner from './ContentPlanner';
 import PlatformAuthTools from './PlatformAuthTools';
 
-const StandaloneAISuggestions: React.FC = () => {
-    return (
-        <div className="p-8">
-            <h2 className="text-2xl font-bold mb-4">AI Tools</h2>
-            <p className="text-gray-400">This section would contain advanced AI features, like content generation, image suggestions, and more.</p>
-        </div>
-    )
+interface ContentPanelProps {
+  activeTab: string | null;
+  onAddElement: (type: ElementType) => void;
 }
 
-const ServerPanel: React.FC = () => (
+const TextContent: React.FC<{ onAddElement: (type: ElementType) => void }> = ({ onAddElement }) => (
     <div className="p-4 space-y-4">
-        <h2 className="text-xl font-bold mb-4">Server & Integrations</h2>
-        <p className="text-gray-400">Manage platform connections and server settings.</p>
-        <PlatformAuthTools />
+        <h3 className="text-md font-semibold text-gray-200">Text</h3>
+        <button 
+            onClick={() => onAddElement(ElementType.TEXT)}
+            className="w-full p-3 bg-gray-700 hover:bg-gray-600 rounded-lg text-left transition-colors"
+        >
+            <p className="text-lg font-bold">Add a heading</p>
+            <p className="text-sm text-gray-400">Click to add a new text box.</p>
+        </button>
     </div>
-)
+);
 
-
-const NotImplementedPanel: React.FC<{ name: string }> = ({ name }) => (
-  <div className="w-full h-full flex items-center justify-center p-8 bg-gray-800">
-    <div className="text-center">
-      <h2 className="text-3xl font-bold text-gray-400">{name}</h2>
-      <p className="mt-2 text-lg text-gray-500">This feature is not yet implemented.</p>
+const ShapesContent: React.FC<{ onAddElement: (type: ElementType) => void }> = ({ onAddElement }) => (
+    <div className="p-4 space-y-4">
+        <h3 className="text-md font-semibold text-gray-200">Shapes</h3>
+         <button 
+            onClick={() => onAddElement(ElementType.SHAPE)}
+            className="w-full p-3 bg-gray-700 hover:bg-gray-600 rounded-lg flex items-center gap-4 transition-colors"
+        >
+            <div className="w-12 h-12 bg-gray-500 rounded-md flex-shrink-0"></div>
+            <p className="font-semibold">Rectangle</p>
+        </button>
     </div>
-  </div>
+);
+
+const PlaceholderContent: React.FC<{ title: string }> = ({ title }) => (
+    <div className="p-4">
+        <h3 className="text-md font-semibold text-gray-200">{title}</h3>
+        <p className="text-sm text-gray-500 mt-2">This feature is not yet implemented.</p>
+    </div>
 );
 
 
-const ContentPanel: React.FC<{ activePanel: string }> = ({ activePanel }) => {
-    const renderPanel = () => {
-        switch (activePanel) {
-            case 'ai':
-                return <StandaloneAISuggestions />;
-            case 'branding':
-                return <BrandingContent />;
+const ContentPanel: React.FC<ContentPanelProps> = ({ activeTab, onAddElement }) => {
+    const renderContent = () => {
+        switch (activeTab) {
+            case 'text':
+                return <TextContent onAddElement={onAddElement} />;
+            case 'shapes':
+                return <ShapesContent onAddElement={onAddElement} />;
             case 'planner':
                 return <ContentPlanner />;
+            case 'branding':
+                return <BrandingContent />;
             case 'feature-analysis':
                 return <FeatureAnalysisContent />;
             case 'server':
-                return <ServerPanel />;
-            case 'checklist':
-                return <NotImplementedPanel name="Deployment Checklist" />;
-            case 'push':
-                return <NotImplementedPanel name="Push to Client" />;
-             case 'collaboration':
-                return <NotImplementedPanel name="Collaboration Tools" />;
+                return <PlatformAuthTools />;
+            case 'templates':
+            case 'images':
+            case 'collaboration':
             case 'version-control':
-                return <NotImplementedPanel name="Version Control" />;
             case 'integrations':
-                return <NotImplementedPanel name="Integrations" />;
+            case 'checklist':
+            case 'push':
+            case 'ai': // AI Suggest is in RightPanel
+                 return <PlaceholderContent title={activeTab ? activeTab.charAt(0).toUpperCase() + activeTab.slice(1) : ''} />;
             default:
-                return (
-                    <div className="p-4">
-                        <h2 className="text-xl font-bold">Content Panel</h2>
-                        <p>Selected: {activePanel}</p>
-                    </div>
-                );
+                return null;
         }
     };
 
+    if (!activeTab) {
+        return null;
+    }
+
     return (
-        <div className="w-full h-full bg-gray-800 overflow-y-auto">
-            {renderPanel()}
-        </div>
+        <aside className="w-80 bg-gray-900 border-r border-gray-700/50 flex flex-col overflow-y-auto flex-shrink-0">
+            {renderContent()}
+        </aside>
     );
 };
 

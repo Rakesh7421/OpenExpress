@@ -1,92 +1,70 @@
-
-import React from 'react';
-import { ScheduledPost } from './ContentPlanner';
+import React, { useState } from 'react';
 import { Icon } from './common/Icon';
+import { ScheduledPost } from './ContentPlanner';
 
 interface CalendarViewProps {
-  posts: ScheduledPost[];
-  currentDate: Date;
-  onSelectPost: (post: ScheduledPost) => void;
-  onNavigate: (newDate: Date) => void;
+    posts: ScheduledPost[];
+    onSelectDate: (date: Date) => void;
 }
 
-const CalendarView: React.FC<CalendarViewProps> = ({ posts, currentDate, onSelectPost, onNavigate }) => {
-  const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-  const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-  const startDay = startOfMonth.getDay(); // 0 = Sunday, 1 = Monday, etc.
-  const daysInMonth = endOfMonth.getDate();
+const CalendarView: React.FC<CalendarViewProps> = ({ posts, onSelectDate }) => {
+    const [currentDate, setCurrentDate] = useState(new Date());
 
-  const handlePrevMonth = () => {
-    onNavigate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-  };
-  
-  const handleNextMonth = () => {
-    onNavigate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-  };
+    const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+    const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+    const startDay = startOfMonth.getDay();
+    const daysInMonth = endOfMonth.getDate();
 
-  const days = [];
-  // Add blank days for the start of the month
-  for (let i = 0; i < startDay; i++) {
-    days.push(<div key={`empty-${i}`} className="border-r border-b border-gray-700/50"></div>);
-  }
+    const days = [];
+    // Previous month's padding
+    for (let i = 0; i < startDay; i++) {
+        days.push(<div key={`prev-${i}`} className="p-2 border border-gray-800 bg-gray-900/50 text-gray-600"></div>);
+    }
+    // Current month's days
+    for (let i = 1; i <= daysInMonth; i++) {
+        const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), i);
+        const postsForDay = posts.filter(p => p.scheduledAt.toDateString() === date.toDateString());
 
-  // Add days of the month
-  for (let day = 1; day <= daysInMonth; day++) {
-    const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-    const postsForDay = posts.filter(p => {
-      const postDate = new Date(p.scheduledAt);
-      return postDate.getFullYear() === date.getFullYear() &&
-             postDate.getMonth() === date.getMonth() &&
-             postDate.getDate() === date.getDate();
-    });
-    
-    const isToday = new Date().toDateString() === date.toDateString();
-
-    days.push(
-      <div key={day} className="border-r border-b border-gray-700/50 p-1.5 min-h-[100px] flex flex-col">
-        <span className={`text-xs font-semibold ${isToday ? 'bg-brand-500 text-white rounded-full w-5 h-5 flex items-center justify-center' : 'text-gray-400'}`}>
-            {day}
-        </span>
-        <div className="mt-1 space-y-1 overflow-y-auto">
-            {postsForDay.map(post => (
-                <div 
-                    key={post.id} 
-                    onClick={() => onSelectPost(post)}
-                    className="p-1 bg-indigo-600/50 text-white rounded-md text-xs truncate cursor-pointer hover:bg-indigo-500"
-                >
-                    {post.content}
+        days.push(
+            <div 
+                key={i} 
+                className="p-2 border border-gray-700/80 bg-gray-800 hover:bg-gray-700/50 cursor-pointer flex flex-col min-h-[100px]"
+                onClick={() => onSelectDate(date)}
+            >
+                <span className="font-semibold">{i}</span>
+                <div className="mt-1 space-y-1 overflow-y-auto">
+                    {postsForDay.map(post => (
+                        <div key={post.id} className="p-1 bg-brand-900/70 rounded-md text-xs truncate" title={post.content}>
+                            {post.content}
+                        </div>
+                    ))}
                 </div>
-            ))}
+            </div>
+        );
+    }
+
+    const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+    const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+    const today = () => setCurrentDate(new Date());
+
+    return (
+        <div className="flex-1 flex flex-col">
+            <div className="flex items-center justify-between mb-2">
+                <h4 className="text-lg font-semibold">{currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}</h4>
+                <div className="flex items-center gap-2">
+                    <button onClick={today} className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded-md">Today</button>
+                    <button onClick={prevMonth} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded-md"><Icon name="chevron-left" className="w-4 h-4" /></button>
+                    <button onClick={nextMonth} className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded-md"><Icon name="chevron-right" className="w-4 h-4" /></button>
+                </div>
+            </div>
+            <div className="grid grid-cols-7 text-xs text-center font-bold text-gray-400 mb-1">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day}>{day}</div>)}
+            </div>
+            <div className="grid grid-cols-7 grid-rows-5 flex-1 text-sm">
+                {days}
+            </div>
         </div>
-      </div>
     );
-  }
-
-  const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-  return (
-    <div className="bg-gray-800 rounded-lg border border-gray-700 h-full flex flex-col">
-      <div className="flex items-center justify-between p-3 border-b border-gray-700 flex-shrink-0">
-        <button onClick={handlePrevMonth} className="p-1.5 text-gray-400 hover:text-white rounded-md transition-colors">
-          <Icon name="chevron-left" />
-        </button>
-        <h3 className="font-semibold text-lg">
-          {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-        </h3>
-        <button onClick={handleNextMonth} className="p-1.5 text-gray-400 hover:text-white rounded-md transition-colors">
-          <Icon name="chevron-right" />
-        </button>
-      </div>
-      <div className="grid grid-cols-7 flex-shrink-0">
-        {weekDays.map(day => (
-          <div key={day} className="text-center text-xs font-bold text-gray-500 p-2 border-r border-b border-gray-700/50">{day}</div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 flex-1 overflow-y-auto">
-        {days}
-      </div>
-    </div>
-  );
 };
 
 export default CalendarView;

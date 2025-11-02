@@ -1,144 +1,106 @@
-
 import React, { useState, useCallback } from 'react';
-import { v4 as uuidv4 } from 'uuid';
-import Header from './components/Header';
+import { AppVersion, DesignElement, ElementType, TextElement, ShapeElement, ShapeType } from './types';
 import Sidebar from './components/Sidebar';
 import Canvas from './components/Canvas';
 import RightPanel from './components/RightPanel';
+import Header from './components/Header';
 import ContentPanel from './components/ContentPanel';
-import { AppVersion, DesignElement, ElementType, ShapeType, TextElement, ShapeElement } from './types';
-
-const initialElements: DesignElement[] = [
-    {
-        id: uuidv4(),
-        type: ElementType.TEXT,
-        x: 50,
-        y: 50,
-        width: 300,
-        height: 50,
-        rotation: 0,
-        content: 'Welcome to OpenExpress!',
-        fontSize: 32,
-        color: '#333333',
-        fontFamily: 'Arial',
-    },
-    {
-        id: uuidv4(),
-        type: ElementType.SHAPE,
-        shapeType: ShapeType.RECTANGLE,
-        x: 400,
-        y: 150,
-        width: 200,
-        height: 100,
-        rotation: 15,
-        backgroundColor: '#38bdf8',
-        borderColor: '#0ea5e9',
-        borderWidth: 2,
-    }
-];
-
+import { v4 as uuidv4 } from 'uuid';
 
 const App: React.FC = () => {
-    const [version, setVersion] = useState<AppVersion>(AppVersion.DEVELOPER);
-    const [elements, setElements] = useState<DesignElement[]>(initialElements);
-    const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
-    const [activeSidebarItem, setActiveSidebarItem] = useState<string>('templates');
-    const [pushedFeatures, setPushedFeatures] = useState<Set<string>>(new Set(['ai', 'planner']));
+  const [version, setVersion] = useState<AppVersion>(AppVersion.DEVELOPER);
+  const [elements, setElements] = useState<DesignElement[]>([]);
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [activeSidebarItem, setActiveSidebarItem] = useState<string | null>('text');
+  const [pushedFeatures, setPushedFeatures] = useState<Set<string>>(new Set(['planner', 'branding', 'feature-analysis', 'server']));
 
-    const handleVersionChange = (newVersion: AppVersion) => {
-        setVersion(newVersion);
-    };
+  const handleVersionChange = (newVersion: AppVersion) => {
+    setVersion(newVersion);
+  };
 
-    const handleSelectElement = (id: string | null) => {
-        setSelectedElementId(id);
-    };
-
-    const handleUpdateElement = useCallback((id: string, updatedProperties: Partial<DesignElement>) => {
-        setElements(prevElements =>
-            prevElements.map(el =>
-                el.id === id ? { ...el, ...updatedProperties } : el
-            )
-        );
-    }, []);
-    
-    const addElement = (element: Omit<DesignElement, 'id'>) => {
-        const newElement = { ...element, id: uuidv4() } as DesignElement;
-        setElements(prev => [...prev, newElement]);
-        setSelectedElementId(newElement.id);
+  const handleSelectElement = (id: string | null) => {
+    setSelectedElementId(id);
+    if (id) {
+        setActiveSidebarItem(null);
     }
-    
-    const handleSelectSidebarItem = (itemId: string) => {
-        setActiveSidebarItem(itemId);
-        if (itemId === 'text') {
-             addElement({
-                type: ElementType.TEXT,
-                x: 100,
-                y: 120,
-                width: 250,
-                height: 40,
-                rotation: 0,
-                content: 'New Text Element',
-                fontSize: 24,
-                color: '#000000',
-                fontFamily: 'Helvetica',
-            } as Omit<TextElement, 'id'>);
-            // Switch back to a view where canvas is visible to avoid confusion
-            setActiveSidebarItem('templates'); 
-        } else if (itemId === 'shapes') {
-            addElement({
-                type: ElementType.SHAPE,
-                shapeType: ShapeType.ELLIPSE,
-                x: 200,
-                y: 200,
-                width: 100,
-                height: 100,
-                rotation: 0,
-                backgroundColor: '#f43f5e',
-                borderColor: '#be123c',
-                borderWidth: 0,
-            } as Omit<ShapeElement, 'id'>);
-            // Switch back to a view where canvas is visible
-            setActiveSidebarItem('templates'); 
-        }
+  };
+
+  const handleUpdateElement = useCallback((id: string, updatedProperties: Partial<DesignElement>) => {
+    setElements(prevElements =>
+      prevElements.map(el =>
+        // FIX: Add type assertion to resolve TypeScript union type issue.
+        el.id === id ? { ...el, ...updatedProperties } as DesignElement : el
+      )
+    );
+  }, []);
+
+  const addElement = (type: ElementType) => {
+    let newElement: DesignElement;
+    const baseElement = {
+        id: uuidv4(),
+        x: 150,
+        y: 100,
+        width: 150,
+        height: 50,
+        rotation: 0,
     };
 
-    // Determine which main view to show. Some sidebar items open a full-screen content panel.
-    const isCanvasVisible = !['planner', 'ai', 'feature-analysis', 'branding', 'server', 'checklist', 'push', 'collaboration', 'version-control', 'integrations'].includes(activeSidebarItem);
+    if (type === ElementType.TEXT) {
+        newElement = {
+            ...baseElement,
+            type: ElementType.TEXT,
+            content: 'Hello World',
+            fontSize: 24,
+            color: '#000000',
+            fontFamily: 'Arial',
+        } as TextElement;
+    } else if (type === ElementType.SHAPE) {
+        newElement = {
+            ...baseElement,
+            width: 100,
+            height: 100,
+            type: ElementType.SHAPE,
+            shapeType: ShapeType.RECTANGLE,
+            backgroundColor: '#38bdf8',
+            borderColor: '#000000',
+            borderWidth: 0,
+        } as ShapeElement;
+    } else {
+        return;
+    }
+    setElements(prev => [...prev, newElement]);
+    setSelectedElementId(newElement.id);
+  }
 
-    return (
-        <div className="flex flex-col h-screen bg-gray-800 text-white font-sans">
-            <Header version={version} onVersionChange={handleVersionChange} />
-            <div className="flex flex-1 overflow-hidden">
-                <Sidebar 
-                    version={version} 
-                    activeItem={activeSidebarItem} 
-                    onSelectItem={handleSelectSidebarItem} 
-                    pushedFeatures={pushedFeatures}
-                />
-                <main className="flex flex-1 overflow-hidden">
-                    {isCanvasVisible ? (
-                         <div className="flex flex-1 relative bg-gray-700">
-                             <Canvas
-                                elements={elements}
-                                selectedElementId={selectedElementId}
-                                onSelectElement={handleSelectElement}
-                                onUpdateElement={handleUpdateElement}
-                            />
-                            <RightPanel
-                                version={version}
-                                elements={elements}
-                                selectedElementId={selectedElementId}
-                                onUpdateElement={handleUpdateElement}
-                                onSelectElement={handleSelectElement}
-                            />
-                         </div>
-                    ) : (
-                        <ContentPanel activePanel={activeSidebarItem} />
-                    )}
-                </main>
-            </div>
-        </div>
-    );
+  const handleSelectItem = (itemId: string) => {
+    setActiveSidebarItem(itemId);
+    setSelectedElementId(null);
+  }
+
+  return (
+    <div className="bg-gray-800 text-white h-screen flex flex-col font-sans antialiased overflow-hidden">
+      <Header version={version} onVersionChange={handleVersionChange} />
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar version={version} activeItem={activeSidebarItem} onSelectItem={handleSelectItem} pushedFeatures={pushedFeatures} />
+        <ContentPanel activeTab={activeSidebarItem} onAddElement={addElement} />
+        <main className="flex-1 bg-gray-700 flex items-center justify-center p-4">
+          <Canvas 
+            elements={elements} 
+            selectedElementId={selectedElementId} 
+            onSelectElement={handleSelectElement} 
+            onUpdateElement={handleUpdateElement} 
+          />
+        </main>
+        <RightPanel 
+            version={version} 
+            elements={elements} 
+            selectedElementId={selectedElementId} 
+            onUpdateElement={handleUpdateElement} 
+            onSelectElement={handleSelectElement}
+        />
+      </div>
+    </div>
+  );
 };
 
 export default App;
