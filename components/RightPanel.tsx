@@ -9,6 +9,7 @@ interface RightPanelProps {
   elements: DesignElement[];
   selectedElementId: string | null;
   onUpdateElement: (id: string, updatedProperties: Partial<DesignElement>) => void;
+  onSelectElement: (id: string | null) => void;
 }
 
 const AISuggestionsPanel: React.FC = () => {
@@ -95,19 +96,46 @@ const AISuggestionsPanel: React.FC = () => {
     );
 };
 
-const LayersPanel: React.FC = () => (
-    <div className="p-4 space-y-4">
-        <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Layers</h3>
-        <div className="space-y-2">
-            {['Header Text', 'Image', 'Background Shape'].map(layer => (
-                <div key={layer} className="flex items-center justify-between p-2 bg-gray-800 rounded-md hover:bg-gray-700/50 cursor-pointer">
-                    <span className="text-sm">{layer}</span>
-                    <Icon name="eye" className="w-4 h-4 text-gray-400" />
-                </div>
-            ))}
+const LayersPanel: React.FC<{
+    elements: DesignElement[];
+    selectedElementId: string | null;
+    onSelectElement: (id: string | null) => void;
+}> = ({ elements, selectedElementId, onSelectElement }) => {
+    const getLayerName = (element: DesignElement) => {
+        switch (element.type) {
+            case ElementType.TEXT:
+                return (element as TextElement).content.substring(0, 20) || 'Text Layer';
+            case ElementType.SHAPE:
+                return `${(element as ShapeElement).shapeType.charAt(0).toUpperCase() + (element as ShapeElement).shapeType.slice(1)} Shape`;
+            default:
+                return 'Layer';
+        }
+    };
+
+    return (
+        <div className="p-4 space-y-4">
+            <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Layers</h3>
+            <div className="space-y-2">
+                {[...elements].reverse().map(element => (
+                    <div 
+                        key={element.id} 
+                        onClick={() => onSelectElement(element.id)}
+                        className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${
+                            selectedElementId === element.id 
+                                ? 'bg-brand-500/20' 
+                                : 'bg-gray-800 hover:bg-gray-700/50'
+                        }`}
+                    >
+                        <span className="text-sm truncate">{getLayerName(element)}</span>
+                        <Icon name="eye" className="w-4 h-4 text-gray-400" />
+                    </div>
+                ))}
+                {elements.length === 0 && <p className="text-xs text-gray-500 text-center py-4">No layers yet.</p>}
+            </div>
         </div>
-    </div>
-);
+    );
+};
+
 
 const PropertyInput: React.FC<{label: string, children: React.ReactNode}> = ({ label, children }) => (
     <div>
@@ -206,7 +234,7 @@ const ElementPropertiesPanel: React.FC<{
 };
 
 
-const RightPanel: React.FC<RightPanelProps> = ({ version, elements, selectedElementId, onUpdateElement }) => {
+const RightPanel: React.FC<RightPanelProps> = ({ version, elements, selectedElementId, onUpdateElement, onSelectElement }) => {
     const selectedElement = useMemo(() => 
         elements.find(el => el.id === selectedElementId),
     [elements, selectedElementId]);
@@ -219,7 +247,7 @@ const RightPanel: React.FC<RightPanelProps> = ({ version, elements, selectedElem
         <>
             <AISuggestionsPanel/>
             <div className="border-t border-gray-700/50 my-2"></div>
-            <LayersPanel />
+            <LayersPanel elements={elements} selectedElementId={selectedElementId} onSelectElement={onSelectElement} />
         </>
       ) : (
         <div className="p-4 space-y-4">

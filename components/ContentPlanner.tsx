@@ -1,201 +1,191 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Icon } from './common/Icon';
 import { getPostIdeas } from '../services/geminiService';
 
-// Mock data
-const brands = ['Nike', 'Adidas', 'Puma'];
-const platforms = ['Facebook', 'Instagram', 'X', 'LinkedIn', 'TikTok'];
+interface ScheduledPost {
+    id: string;
+    content: string;
+    platforms: string[];
+    scheduledAt: Date;
+    status: 'scheduled' | 'posted' | 'failed';
+}
 
-const StyledSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement> & { label: string; options: string[] }> = ({ label, id, options, ...props }) => (
-  <div>
-    <label htmlFor={id} className="block text-sm font-medium text-gray-400 mb-1">
-      {label}
-    </label>
-    <select
-      id={id}
-      className="w-full p-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition"
-      {...props}
-    >
-      <option value="">Select {label}...</option>
-      {options.map(option => (
-        <option key={option} value={option.toLowerCase().replace(' ', '_')}>{option}</option>
-      ))}
-    </select>
-  </div>
-);
+const PLATFORMS = [
+    { id: 'meta', name: 'Meta', icon: 'facebook' },
+    { id: 'twitter', name: 'X', icon: 'twitter' },
+    { id: 'linkedin', name: 'LinkedIn', icon: 'linkedin' },
+    { id: 'tiktok', name: 'TikTok', icon: 'tiktok' },
+    { id: 'instagram', name: 'Instagram', icon: 'instagram' },
+    { id: 'pinterest', name: 'Pinterest', icon: 'pinterest' },
+];
 
 const ContentPlanner: React.FC = () => {
-  const [brand, setBrand] = useState('');
-  const [platform, setPlatform] = useState('');
-  
-  const [postContent, setPostContent] = useState('');
-  const [isScheduling, setIsScheduling] = useState(false);
-  const [scheduleStatus, setScheduleStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
-  
-  const [ideas, setIdeas] = useState<string[]>([]);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generationError, setGenerationError] = useState<string | null>(null);
+    const [postContent, setPostContent] = useState('');
+    const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
+    const [scheduledDateTime, setScheduledDateTime] = useState('');
+    const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>([]);
+    
+    const [ideaBrand, setIdeaBrand] = useState('a local coffee shop');
+    const [ideaPlatform, setIdeaPlatform] = useState('instagram');
+    const [ideas, setIdeas] = useState<string[]>([]);
+    const [isIdeasLoading, setIsIdeasLoading] = useState(false);
+    const [ideasError, setIdeasError] = useState<string | null>(null);
 
-  const handleGenerateIdeas = async () => {
-    if (!brand || !platform) return;
-    setIsGenerating(true);
-    setGenerationError(null);
-    setIdeas([]);
-    try {
-      const result = await getPostIdeas(brand, platform); 
-      setIdeas(result);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'An unknown error occurred.';
-      setGenerationError(message);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleSchedule = async () => {
-      setIsScheduling(true);
-      setScheduleStatus(null);
-
-      // We can use any valid JWT to authenticate with the Python server,
-      // as long as the secret is shared. We'll try to find one.
-      const platformIds = ['meta', 'x', 'linkedin', 'tiktok'];
-      const token = platformIds.reduce<string | null>((foundToken, id) => {
-        if (foundToken) return foundToken;
-        return localStorage.getItem(`${id}_jwt`);
-      }, null);
-
-      if (!token) {
-        setScheduleStatus({ type: 'error', message: 'You must connect at least one account in Branding to schedule posts.'});
-        setIsScheduling(false);
-        return;
-      }
-
-      try {
-        const response = await fetch('/api/schedule-post', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-                brand,
-                platform,
-                content: postContent,
-                scheduleTime: new Date().toISOString()
-            })
+    const handlePlatformToggle = (platformId: string) => {
+        setSelectedPlatforms(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(platformId)) {
+                newSet.delete(platformId);
+            } else {
+                newSet.add(platformId);
+            }
+            return newSet;
         });
+    };
 
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || 'Failed to schedule post.');
+    const handleSchedulePost = () => {
+        if (!postContent || selectedPlatforms.size === 0 || !scheduledDateTime) {
+            alert('Please fill in all fields: content, at least one platform, and a date/time.');
+            return;
         }
 
-        setScheduleStatus({ type: 'success', message: data.message });
-        setPostContent(''); // Clear content on success
-      } catch (error) {
-          const message = error instanceof Error ? error.message : 'An unknown error occurred.';
-          setScheduleStatus({ type: 'error', message });
-      } finally {
-          setIsScheduling(false);
-          setTimeout(() => setScheduleStatus(null), 4000); // Hide message after 4s
-      }
-  }
+        const newPost: ScheduledPost = {
+            id: `post_${Date.now()}`,
+            content: postContent,
+            platforms: Array.from(selectedPlatforms),
+            scheduledAt: new Date(scheduledDateTime),
+            status: 'scheduled',
+        };
 
-  const selectionMade = useMemo(() => {
-      return brand && platform;
-  }, [brand, platform]);
+        setScheduledPosts(prev => [newPost, ...prev]);
 
-  const canSchedule = postContent.trim().length > 0 && selectionMade;
+        // Reset form
+        setPostContent('');
+        setSelectedPlatforms(new Set());
+        setScheduledDateTime('');
+    };
+    
+    const handleGenerateIdeas = useCallback(async () => {
+        setIsIdeasLoading(true);
+        setIdeasError(null);
+        setIdeas([]);
+        try {
+            const result = await getPostIdeas(ideaBrand, ideaPlatform);
+            setIdeas(result);
+        } catch (e) {
+            const message = e instanceof Error ? e.message : 'An unknown error occurred.';
+            setIdeasError(message);
+        } finally {
+            setIsIdeasLoading(false);
+        }
+    }, [ideaBrand, ideaPlatform]);
 
-  return (
-    <div className="flex flex-col h-full">
-      <div className="flex-grow overflow-y-auto">
-        <div className="p-4 space-y-4">
-            <h3 className="text-md font-semibold text-gray-200 mb-1">Plan Your Content</h3>
-            <p className="text-sm text-gray-400 mb-4">Select the brand and platform for your new post.</p>
-            <div className="space-y-3">
-                <StyledSelect label="Brand" id="client-brand" options={brands} value={brand} onChange={e => setBrand(e.target.value)} />
-                <StyledSelect label="Platform" id="client-platform" options={platforms} value={platform} onChange={e => setPlatform(e.target.value)} />
-            </div>
-            {selectionMade && (
-                <div className="animate-fade-in">
-                    <div className="mt-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700 flex items-center gap-3">
-                        <Icon name="check-circle" className="w-5 h-5 text-green-500 flex-shrink-0" />
-                        <div>
-                            <h4 className="text-sm font-semibold text-gray-300">Target Selected</h4>
-                            <p className="text-xs text-gray-400">
-                                Planning for: <span className="font-medium text-gray-300">{brand.charAt(0).toUpperCase() + brand.slice(1)} on {platform.charAt(0).toUpperCase() + platform.slice(1)}</span>
-                            </p>
-                        </div>
-                    </div>
-                     <div className="mt-4">
-                        <button
-                            onClick={handleGenerateIdeas}
-                            disabled={isGenerating}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors border border-gray-600 hover:bg-gray-700 text-gray-300 disabled:opacity-50"
-                        >
-                            <Icon name="sparkles" className={`w-5 h-5 ${isGenerating ? 'animate-pulse' : ''}`} />
-                            <span>{isGenerating ? 'Generating Ideas...' : 'Generate Ideas with AI'}</span>
-                        </button>
-                    </div>
-                    {generationError && <p className="mt-2 text-sm text-red-400">{generationError}</p>}
-                    {ideas.length > 0 && (
-                    <div className="mt-4 space-y-2 p-3 bg-gray-900/50 rounded-lg border border-gray-700 animate-fade-in">
-                        <h4 className="text-sm font-semibold text-gray-300">Here are some ideas:</h4>
-                        <ul className="list-disc list-inside space-y-2 text-sm text-gray-400">
-                        {ideas.map((idea, index) => (
-                            <li key={index} className="hover:text-white cursor-pointer" onClick={() => setPostContent(prev => prev ? `${prev}\n\n${idea}` : idea)}>
-                            {idea}
-                            </li>
+    return (
+        <div className="p-4 space-y-6 text-gray-300 h-full flex flex-col">
+            <div className="space-y-4 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                <h3 className="text-md font-semibold text-gray-200">Create & Schedule Post</h3>
+                <div>
+                    <label htmlFor="post-content" className="block text-sm font-medium text-gray-400 mb-1">Content</label>
+                    <textarea
+                        id="post-content"
+                        rows={5}
+                        value={postContent}
+                        onChange={(e) => setPostContent(e.target.value)}
+                        className="w-full p-2 bg-gray-800 border border-gray-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition"
+                        placeholder="What's on your mind?"
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-2">Platforms</label>
+                    <div className="grid grid-cols-3 gap-2">
+                        {PLATFORMS.map(platform => (
+                            <button
+                                key={platform.id}
+                                onClick={() => handlePlatformToggle(platform.id)}
+                                className={`flex items-center justify-center gap-2 p-2 rounded-md transition-colors text-xs ${selectedPlatforms.has(platform.id) ? 'bg-brand-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
+                            >
+                                <Icon name={platform.icon} className="w-4 h-4" />
+                                <span>{platform.name}</span>
+                            </button>
                         ))}
-                        </ul>
                     </div>
+                </div>
+                <div>
+                    <label htmlFor="schedule-time" className="block text-sm font-medium text-gray-400 mb-1">Schedule Date & Time</label>
+                    <input
+                        id="schedule-time"
+                        type="datetime-local"
+                        value={scheduledDateTime}
+                        onChange={e => setScheduledDateTime(e.target.value)}
+                        className="w-full p-2 bg-gray-800 border border-gray-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition"
+                    />
+                </div>
+                <button
+                    onClick={handleSchedulePost}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 rounded-lg transition-colors"
+                >
+                    <Icon name="calendar" className="w-4 h-4" />
+                    <span>Schedule Post</span>
+                </button>
+            </div>
+
+            <details className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                <summary className="text-md font-semibold text-gray-200 cursor-pointer">Get Post Ideas (AI)</summary>
+                <div className="mt-4 pt-4 border-t border-gray-700 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                         <div>
+                            <label htmlFor="idea-brand" className="block text-xs font-medium text-gray-400 mb-1">Brand/Topic</label>
+                            <input id="idea-brand" value={ideaBrand} onChange={e => setIdeaBrand(e.target.value)} className="w-full p-2 bg-gray-800 border border-gray-600 rounded-md text-sm" />
+                         </div>
+                         <div>
+                             <label htmlFor="idea-platform" className="block text-xs font-medium text-gray-400 mb-1">Platform</label>
+                             <select id="idea-platform" value={ideaPlatform} onChange={e => setIdeaPlatform(e.target.value)} className="w-full p-2 bg-gray-800 border border-gray-600 rounded-md text-sm">
+                                 {PLATFORMS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                             </select>
+                         </div>
+                    </div>
+                     <button onClick={handleGenerateIdeas} disabled={isIdeasLoading} className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50">
+                        {isIdeasLoading ? <Icon name="loader" className="w-4 h-4 animate-spin"/> : <Icon name="sparkles" className="w-4 h-4"/>}
+                        <span>{isIdeasLoading ? 'Generating...' : 'Generate Ideas'}</span>
+                    </button>
+                    {ideasError && <p className="text-xs text-red-400">{ideasError}</p>}
+                    {ideas.length > 0 && (
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {ideas.map((idea, index) => (
+                                <div key={index} className="p-2 bg-gray-800 rounded-md flex items-start justify-between text-sm">
+                                    <p className="pr-2">{idea}</p>
+                                    <button onClick={() => setPostContent(idea)} className="text-xs font-semibold bg-brand-600 hover:bg-brand-500 text-white rounded-md py-1 px-2 transition-colors flex-shrink-0 ml-2">Use</button>
+                                </div>
+                            ))}
+                        </div>
                     )}
                 </div>
-            )}
-        </div>
-        
-        {/* Shared Content Area */}
-        <div className="p-4">
-            <label htmlFor="post-content" className="block text-sm font-medium text-gray-400 mb-1">
-                Post Content
-            </label>
-            <textarea
-                id="post-content"
-                rows={8}
-                value={postContent}
-                onChange={e => setPostContent(e.target.value)}
-                className="w-full p-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition"
-                placeholder="What do you want to share?"
-            />
-        </div>
-      </div>
-      
-      {/* Shared Footer/Action Area */}
-      <div className="p-4 border-t border-gray-700/50 mt-auto flex-shrink-0">
-         {scheduleStatus && (
-            <div className={`mb-3 p-2 text-center text-sm rounded-md animate-fade-in ${
-                scheduleStatus.type === 'success' ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'
-            }`}>
-                {scheduleStatus.message}
+            </details>
+
+            <div className="flex-1 flex flex-col min-h-0">
+                <h3 className="text-md font-semibold text-gray-200 mb-2">Scheduled Posts</h3>
+                <div className="flex-1 overflow-y-auto space-y-2 bg-gray-800/50 p-2 rounded-lg border border-gray-700">
+                    {scheduledPosts.length === 0 && (
+                        <p className="text-sm text-gray-500 text-center py-4">No posts scheduled yet.</p>
+                    )}
+                    {scheduledPosts.map(post => (
+                        <div key={post.id} className="p-3 bg-gray-800 rounded-md">
+                            <p className="text-sm line-clamp-2">{post.content}</p>
+                            <div className="flex items-center justify-between mt-2 text-xs text-gray-400">
+                                <span>{post.scheduledAt.toLocaleString()}</span>
+                                <div className="flex items-center gap-2">
+                                    {post.platforms.map(pId => {
+                                        const platform = PLATFORMS.find(p => p.id === pId);
+                                        return platform ? <Icon key={pId} name={platform.icon} className="w-4 h-4" title={platform.name} /> : null;
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
-        )}
-        <button
-            onClick={handleSchedule}
-            disabled={!canSchedule || isScheduling}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 rounded-lg transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed"
-        >
-            {isScheduling ? (
-                <Icon name="loader" className="w-5 h-5 animate-spin" />
-            ) : (
-                <Icon name="calendar" className="w-5 h-5" />
-            )}
-            <span>{isScheduling ? 'Scheduling...' : 'Schedule Post'}</span>
-        </button>
-      </div>
-    </div>
-  );
+        </div>
+    );
 };
 
 export default ContentPlanner;

@@ -5,8 +5,8 @@ import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import Canvas from './components/Canvas';
 import RightPanel from './components/RightPanel';
-// FIX: Module '"./components/ContentPanel"' has no default export. Added default export in ContentPanel.tsx
 import ContentPanel from './components/ContentPanel';
+import ShareModal from './components/ShareModal';
 
 export default function App(): React.ReactElement {
   const [version, setVersion] = useState<AppVersion>(AppVersion.DEVELOPER);
@@ -14,6 +14,7 @@ export default function App(): React.ReactElement {
   const [pushedFeatures, setPushedFeatures] = useState<Set<string>>(new Set());
   const [canvasElements, setCanvasElements] = useState<DesignElement[]>([]);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   const handleVersionChange = useCallback((newVersion: AppVersion) => {
     setVersion(newVersion);
@@ -48,7 +49,6 @@ export default function App(): React.ReactElement {
   const updateCanvasElement = useCallback((elementId: string, updatedProperties: Partial<DesignElement>) => {
     setCanvasElements(prev => 
       prev.map(el => 
-        // FIX: Add type assertion to resolve spread operator issue with union types.
         el.id === elementId ? ({ ...el, ...updatedProperties } as DesignElement) : el
       )
     );
@@ -61,7 +61,12 @@ export default function App(): React.ReactElement {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-gray-900 text-gray-100 font-sans overflow-hidden">
-      <Header version={version} onVersionChange={handleVersionChange} />
+      <Header 
+        version={version} 
+        onVersionChange={handleVersionChange}
+        elements={canvasElements}
+        onShare={() => setIsShareModalOpen(true)}
+      />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           version={version}
@@ -93,8 +98,10 @@ export default function App(): React.ReactElement {
           elements={canvasElements}
           selectedElementId={selectedElementId}
           onUpdateElement={updateCanvasElement}
+          onSelectElement={handleSelectElement}
         />
       </div>
+      {isShareModalOpen && <ShareModal onClose={() => setIsShareModalOpen(false)} />}
     </div>
   );
 }

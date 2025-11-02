@@ -467,12 +467,12 @@ def save_design(current_user):
 @token_required
 def schedule_post(current_user):
     data = request.get_json()
-    if not all(key in data for key in ['brand', 'platform', 'content']):
-        app.logger.warning(f"User {current_user} made a schedule-post request with missing data.")
+    if not all(key in data for key in ['accountId', 'platform', 'content']):
+        app.logger.warning(f"User {current_user} made a schedule-post request with missing data. Required: accountId, platform, content.")
         return jsonify(error='Missing required fields for scheduling.'), 400
     
-    app.logger.info(f"User {current_user} scheduled a post for {data['brand']} on {data['platform']}.")
-    return jsonify(message=f"Post for {data['brand']} on {data['platform']} has been scheduled!"), 201
+    app.logger.info(f"User {current_user} scheduled a post for account {data['accountId']} on {data['platform']}.")
+    return jsonify(message=f"Post for account {data['accountId']} on {data['platform']} has been scheduled!"), 201
 
 @app.route('/api/image-upload', methods=['POST'])
 def upload_image():
@@ -491,6 +491,33 @@ def upload_image():
         message='Image uploaded successfully!',
         imageUrl=f'https://fake-cdn.com/images/{file.filename}'
     ), 200
+    
+@app.route('/api/feature-analysis', methods=['POST'])
+@token_required
+def save_feature_analysis(current_user):
+    data = request.get_json()
+    if not data or 'content' not in data:
+        app.logger.warning("Save feature analysis request missing content.")
+        return jsonify(error='Content is required.'), 400
+    
+    content = data['content']
+    # Security: Ensure we only write to the intended file.
+    file_path = os.path.join(ROOT_DIR, 'feature-analysis', 'content-planner-comparison.md')
+    
+    # Check if the path is within the allowed directory
+    if not os.path.abspath(file_path).startswith(os.path.abspath(os.path.join(ROOT_DIR, 'feature-analysis'))):
+        app.logger.error(f"SECURITY ALERT: User {current_user} attempted path traversal to write to {file_path}")
+        return jsonify(error='Invalid file path.'), 403
+
+    try:
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        app.logger.info(f"User {current_user} updated feature-analysis file.")
+        return jsonify(message="Feature analysis saved successfully."), 200
+    except Exception as e:
+        app.logger.error(f"Error saving feature analysis file: {e}")
+        return jsonify(error="Failed to save file on server."), 500
+
 
 # Start the server for local development
 if __name__ == '__main__':
