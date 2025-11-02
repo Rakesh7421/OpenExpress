@@ -57,48 +57,53 @@ def is_admin():
     return os.geteuid() == 0 if hasattr(os, 'geteuid') else True
 
 
-def setup_node_modules_link_bash():
-    """Executes an external bash script to create the symbolic link."""
+def setup_node_modules_link():
+    """Executes an external Python script to create the symbolic link/junction."""
     if not is_user_tempo():
         return True
 
-    log("Setting up centralized node_modules link using dedicated bash script...")
+    log("Setting up centralized node_modules link using Python helper script...")
 
-    script_path = os.path.join(ROOT_DIR, 'setup_node_link_sh.txt')
-    if not os.path.exists(script_path):
-        log(f"❌ Critical Error: The helper script 'setup_node_link_sh.txt' was not found in the project root.")
+    helper_script_path = os.path.join(ROOT_DIR, 'symlink_manager_py.txt')
+    if not os.path.exists(helper_script_path):
+        log(f"❌ Critical Error: The helper script '{os.path.basename(helper_script_path)}' was not found.")
+        log(f"   Expected at: {helper_script_path}")
         return False
         
-    # We must use 'bash' as the command, assuming it's in the user's PATH (which it is for Git Bash/MINGW64 users).
     command = [
-        'bash',
-        script_path,
+        PYTHON_EXECUTABLE,
+        helper_script_path,
         TEMPO_NODE_MODULES_TARGET,
         NODE_MODULES_LINK_PATH
     ]
     
     try:
         log(f"Executing command: {' '.join(command)}")
-        # We'll stream the output directly to the console so the user sees the bash script's progress.
         process = subprocess.run(
             command,
-            check=True,  # This will raise CalledProcessError if the script returns a non-zero exit code
+            check=True,
+            capture_output=True,
             text=True,
-            shell=platform.system() == 'Windows' # Shell=True helps find 'bash' in the PATH
+            encoding='utf-8',
+            errors='replace'
         )
-        log("✅ Bash script executed successfully.")
+        print(process.stdout)
+        if process.stderr:
+            print("Errors from helper:", file=sys.stderr)
+            print(process.stderr, file=sys.stderr)
+
+        log("✅ Helper script executed successfully.")
         return True
-    except FileNotFoundError:
-        log("❌ Error: 'bash' command not found.")
-        log("   Please ensure you are running this script from a bash-compatible terminal like Git Bash on Windows,")
-        log("   and that 'bash' is in your system's PATH.")
-        return False
     except subprocess.CalledProcessError as e:
-        log(f"❌ Error: The bash script failed with exit code {e.returncode}.")
+        log(f"❌ Error: The symlink helper script failed with exit code {e.returncode}.")
+        print("\n--- Helper Script Output ---")
+        print(e.stdout)
+        print(e.stderr, file=sys.stderr)
+        print("--------------------------")
         log("   Please review the output from the script above for details.")
         return False
     except Exception as e:
-        log(f"❌ An unexpected error occurred while running the bash script: {e}")
+        log(f"❌ An unexpected error occurred while running the symlink helper script: {e}")
         return False
 
 
@@ -343,9 +348,9 @@ def install_frontend_dependencies():
         log("Failed to prepare package.json, skipping npm install.")
         return
 
-    # Use the new bash script function for 'Tempo' user
+    # Use the new python helper function for 'Tempo' user
     if is_user_tempo():
-        if not setup_node_modules_link_bash():
+        if not setup_node_modules_link():
             log("❌ Failed to setup centralized node_modules. Aborting frontend dependency installation.")
             return
     elif os.path.lexists(NODE_MODULES_LINK_PATH):

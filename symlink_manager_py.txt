@@ -1,0 +1,105 @@
+import os
+import sys
+import platform
+import subprocess
+import shutil
+
+def log(msg):
+    """Prints a log message with a script identifier."""
+    print(f"[{os.path.basename(__file__)}] {msg}")
+
+def create_junction(target_path, link_path):
+    """Creates a directory junction on Windows using the 'mklink /J' command."""
+    log(f"Attempting to create junction from '{link_path}' to '{target_path}'")
+    try:
+        # 'mklink' is an internal command of cmd.exe. We must call it through 'cmd /c'.
+        # The link path must not exist, but the target path must exist.
+        subprocess.run(
+            ['cmd', '/c', 'mklink', '/J', link_path, target_path],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        log("✅ Junction created successfully.")
+        return True
+    except subprocess.CalledProcessError as e:
+        log("❌ Failed to create junction using 'mklink /J'.")
+        # Provide a cleaner error message from stderr.
+        error_message = e.stderr.strip() if e.stderr else "Unknown error."
+        log(f"   Error: {error_message}")
+        log("   This can happen if the link path already exists as a file or if permissions are insufficient.")
+        return False
+    except FileNotFoundError:
+        log("❌ 'cmd.exe' not found in system PATH. Cannot create a junction.")
+        return False
+
+def create_symlink_unix(target_path, link_path):
+    """Creates a standard symbolic link on Unix-like systems (Linux, macOS)."""
+    log(f"Attempting to create symlink from '{link_path}' to '{target_path}'")
+    try:
+        os.symlink(target_path, link_path)
+        log("✅ Symlink created successfully.")
+        return True
+    except OSError as e:
+        log(f"❌ Failed to create symlink: {e}")
+        return False
+
+def main(target_arg, link_arg):
+    """Main execution logic for creating the directory link."""
+    # Resolve to absolute paths to avoid ambiguity.
+    target_path = os.path.abspath(target_arg)
+    link_path = os.path.abspath(link_arg)
+    link_parent_dir = os.path.dirname(link_path)
+
+    log(f"-> Target: {target_path}")
+    log(f"-> Link:   {link_path}")
+
+    # Step 1: Ensure the necessary directories exist before creating a link.
+    log("-> Ensuring directories exist...")
+    try:
+        os.makedirs(target_path, exist_ok=True)
+        os.makedirs(link_parent_dir, exist_ok=True)
+        log("   - Directories are ready.")
+    except OSError as e:
+        log(f"❌ Failed to create necessary directories: {e}")
+        sys.exit(1)
+
+    # Step 2: Clean up any pre-existing file, directory, or link at the target location.
+    log(f"-> Checking for existing item at '{link_path}'...")
+    try:
+        if os.path.islink(link_path):
+            os.remove(link_path)
+            log("   - Removed existing symlink.")
+        elif os.path.isdir(link_path):
+            shutil.rmtree(link_path) # rmtree correctly handles directories and junctions.
+            log("   - Removed existing directory/junction.")
+        elif os.path.exists(link_path):
+            os.remove(link_path) # It's a file.
+            log("   - Removed existing file.")
+        else:
+            log("   - Nothing to remove. Path is clean.")
+    except OSError as e:
+        log(f"❌ Failed to remove existing item at '{link_path}': {e}")
+        sys.exit(1)
+
+    # Step 3: Create the appropriate type of link for the operating system.
+    log("-> Creating link...")
+    success = False
+    if platform.system() == "Windows":
+        # Junctions are more reliable for directories on Windows and don't require special user permissions.
+        success = create_junction(target_path, link_path)
+    else:
+        # Use standard symbolic links for all other systems.
+        success = create_symlink_unix(target_path, link_path)
+
+    if not success:
+        log("❌ Link creation process failed.")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print("Error: Invalid arguments.", file=sys.stderr)
+        print("Usage: python symlink_manager_py.txt <target_directory> <link_path>", file=sys.stderr)
+        sys.exit(1)
+    
+    main(sys.argv[1], sys.argv[2])
