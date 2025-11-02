@@ -4,8 +4,6 @@ import platform
 import threading
 import sys
 import json
-import atexit
-from typing import List, Optional
 import getpass
 
 # --- Configuration ---
@@ -15,7 +13,11 @@ FRONTEND_DIR = ROOT_DIR
 
 PYTHON_SERVER_SCRIPT_TXT = os.path.join(SERVER_DIR, 'server_py.txt')
 PACKAGE_JSON = os.path.join(ROOT_DIR, 'package.json')
-NODE_INSTALL_PREFIX_TEMPO = os.path.join('D:\\', 'installer_files', 'node_modules', 'openexpress')
+
+# Configuration for 'Tempo' user on Windows
+NODE_INSTALL_DIR_TEMPO = os.path.join('D:\\', 'installer_files', 'node_modules', 'openexpress')
+NODE_MODULES_TARGET_TEMPO = os.path.join(NODE_INSTALL_DIR_TEMPO, 'node_modules')
+NODE_MODULES_LINK_PATH = os.path.join(FRONTEND_DIR, 'node_modules')
 
 
 # --- Helper Functions ---
@@ -37,16 +39,54 @@ def get_python_executable():
 
 PYTHON_EXECUTABLE = get_python_executable()
 
-def get_npm_command_base():
-    """Returns the base npm command list, with special handling for user 'Tempo'."""
+def is_user_tempo():
+    """Checks if the current user is 'Tempo' on Windows."""
     try:
-        if getpass.getuser().lower() == 'tempo' and platform.system() == 'Windows':
-            print(f"Info: Using custom Node.js prefix for user 'Tempo': {NODE_INSTALL_PREFIX_TEMPO}")
-            return ['npm', '--prefix', NODE_INSTALL_PREFIX_TEMPO]
-    except Exception as e:
-        print(f"Warning: Could not check for 'Tempo' user. Using default npm. Reason: {e}")
-    return ['npm']
+        return getpass.getuser().lower() == 'tempo' and platform.system() == 'Windows'
+    except Exception:
+        return False
 
+def setup_node_modules_junction():
+    """For user 'Tempo', creates a directory junction for node_modules to a dedicated folder."""
+    if not is_user_tempo():
+        return True # Not applicable, so we consider it a success.
+
+    print("Info: User 'Tempo' detected on Windows. Setting up centralized node_modules.")
+    print(f"  Target: {NODE_MODULES_TARGET_TEMPO}")
+    print(f"  Link:   {NODE_MODULES_LINK_PATH}")
+
+    # Check if the link path already exists
+    if os.path.lexists(NODE_MODULES_LINK_PATH):
+        if os.path.isdir(NODE_MODULES_LINK_PATH) and not os.path.islink(NODE_MODULES_LINK_PATH):
+            print("Info: 'node_modules' directory exists. Assuming it's the correct junction/link.")
+            return True
+        elif os.path.islink(NODE_MODULES_LINK_PATH):
+            print("Info: Symlink/junction already exists. No action needed.")
+            return True
+        else:
+            print("Error: A file named 'node_modules' already exists and is not a directory/junction.")
+            print("Please remove it manually to proceed with centralized installation.")
+            return False
+            
+    # Ensure the target directory exists
+    try:
+        os.makedirs(NODE_MODULES_TARGET_TEMPO, exist_ok=True)
+    except OSError as e:
+        print(f"Error: Could not create target directory '{NODE_MODULES_TARGET_TEMPO}'. Reason: {e}")
+        return False
+        
+    # Create the junction using mklink, which is ideal for directories on Windows
+    try:
+        subprocess.check_call(f'mklink /J "{NODE_MODULES_LINK_PATH}" "{NODE_MODULES_TARGET_TEMPO}"', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print("Successfully created junction for node_modules.")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"Error: Could not create junction for node_modules. 'mklink' command failed. Reason: {e}")
+        print("This is a standard Windows command. Please check your system configuration or permissions.")
+        return False
+    except Exception as e:
+        print(f"Error: An unexpected error occurred while creating the junction: {e}")
+        return False
 
 def print_header(title: str):
     """Prints a styled header."""
@@ -87,7 +127,7 @@ def prepare_package_json():
         return False
 
 
-def run_command(command: List[str], working_dir: str, name: str, env: Optional[dict] = None):
+def run_command(command, working_dir, name, env=None):
     """Runs a command in a subprocess and streams its output."""
     print(f"[{name}] Starting process: {' '.join(command)}")
     try:
@@ -129,10 +169,13 @@ def install_dependencies():
         print("[npm-ERR] Could not prepare package.json for Node.js. Skipping npm install.")
         return
     
-    npm_base_cmd = get_npm_command_base()
-    install_cmd = npm_base_cmd + ['install']
-    # npm --prefix will install dependencies of the CWD, so we run from the project root.
-    run_command(install_cmd, FRONTEND_DIR, "npm")
+    if is_user_tempo():
+        if not setup_node_modules_junction():
+            print("[npm-ERR] Failed to set up centralized node_modules. Aborting npm install.")
+            return
+
+    # Run npm install normally. If junction exists, it will install to the target dir.
+    run_command(['npm', 'install'], FRONTEND_DIR, "npm")
 
 def run_python_server():
     """Runs the Python/Flask API & Auth server."""
@@ -141,41 +184,31 @@ def run_python_server():
         print(f"[Python API-ERR] Source file not found: {os.path.relpath(PYTHON_SERVER_SCRIPT_TXT, ROOT_DIR)}")
         return
     
-    # Run the .txt file directly with the Python interpreter
     run_command([PYTHON_EXECUTABLE, PYTHON_SERVER_SCRIPT_TXT], SERVER_DIR, "Python API")
 
 def run_frontend_dev_server():
     """Runs the frontend development server (Vite)."""
     print_header("Running Frontend Dev Server")
-    if not os.path.exists(PACKAGE_JSON):
-        print("[Frontend-ERR] package.json not found. Cannot start. Try running 'Install Dependencies' first.")
+    if not os.path.isdir(NODE_MODULES_LINK_PATH):
+        print("[Frontend-ERR] 'node_modules' directory not found. Cannot start. Try running 'Install Dependencies' first.")
         return
     
-    npm_base_cmd = get_npm_command_base()
-    run_cmd = npm_base_cmd + ['run', 'dev']
-    run_command(run_cmd, FRONTEND_DIR, "Frontend")
+    run_command(['npm', 'run', 'dev'], FRONTEND_DIR, "Frontend")
 
 
 def run_all_services():
     """Runs all services concurrently in separate threads."""
     print_header("Starting All Services")
 
-    node_modules_path = os.path.join(FRONTEND_DIR, 'node_modules')
-    try:
-        if getpass.getuser().lower() == 'tempo' and platform.system() == 'Windows':
-            node_modules_path = os.path.join(NODE_INSTALL_PREFIX_TEMPO, 'node_modules')
-    except Exception:
-        pass # Stick with default path
-
-    if not os.path.isdir(node_modules_path):
-        print(f"\nInfo: 'node_modules' directory not found at '{node_modules_path}'. Running dependency installation first.")
+    if not os.path.isdir(NODE_MODULES_LINK_PATH):
+        print(f"\nInfo: 'node_modules' directory not found. Running dependency installation first.")
         install_dependencies()
-        if not os.path.isdir(node_modules_path):
+        if not os.path.isdir(NODE_MODULES_LINK_PATH):
             print("\nError: Dependency installation failed. Cannot start services.")
             return
 
     if not os.path.exists(PYTHON_SERVER_SCRIPT_TXT):
-         print("\nRequired Python server script is missing. Run 'Check Environment' for details.")
+         print("\nRequired Python server script is missing.")
          return
 
     threads = [
