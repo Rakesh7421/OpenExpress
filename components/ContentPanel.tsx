@@ -3,6 +3,7 @@ import { AppVersion, DesignElement, ElementType, ShapeType, TextElement, ShapeEl
 import { Icon } from './common/Icon';
 import { DEVELOPER_SIDEBAR_ITEMS, CLIENT_SIDEBAR_ITEMS } from '../constants';
 import ContentPlanner from './ContentPlanner';
+import PlatformAuthTools from './PlatformAuthTools';
 
 // --- Type Definitions for API Action Tester ---
 interface ApiActionInput {
@@ -31,8 +32,104 @@ interface ContentPanelProps {
   onAddElement: (element: Omit<DesignElement, 'id'>) => void;
 }
 
+const initialAppConfig = {
+  "last_saved": "2025-11-01T03:29:23.713477+00:00",
+  "current_selection": {
+    "user": "rakesh",
+    "brand": "mv",
+    "platform": "Instagram"
+  },
+  "users": {
+    "default_user": {
+      "brands": {
+        "DefaultBrand": {
+          "Facebook": {
+            "dev": {
+              "facebook_app": { "app_id": "", "app_secret": "", "page_id": "", "group_id": "" },
+              "tokens": { "user": "", "page": "" },
+              "oauth": { "redirect_uri": "http://localhost:8080/", "scopes": "pages_manage_posts,publish_video,pages_read_engagement,pages_show_list,publish_to_groups,groups_access_member_info" }
+            },
+            "live": {
+              "facebook_app": { "app_id": "", "app_secret": "", "page_id": "", "group_id": "" },
+              "tokens": { "user": "", "page": "" },
+              "oauth": { "redirect_uri": "http://localhost:8080/", "scopes": "pages_manage_posts,publish_video,pages_read_engagement,pages_show_list,publish_to_groups,groups_access_member_info" }
+            }
+          },
+          "Instagram": {
+            "dev": {
+              "facebook_app": { "app_id": "", "app_secret": "", "page_id": "", "group_id": "" },
+              "tokens": { "user": "", "page": "" },
+              "oauth": { "redirect_uri": "http://localhost:8080/", "scopes": "instagram_basic,instagram_content_publish,pages_show_list" }
+            },
+            "live": {
+              "facebook_app": { "app_id": "", "app_secret": "", "page_id": "", "group_id": "" },
+              "tokens": { "user": "", "page": "" },
+              "oauth": { "redirect_uri": "https://app.com/", "scopes": "instagram_basic,instagram_content_publish,pages_show_list" }
+            }
+          },
+          "Pinterest": {
+            "dev": {
+              "facebook_app": { "app_id": "", "app_secret": "", "page_id": "", "group_id": "" }, // Note: Pinterest uses different field names, but the UI structure is generic.
+              "tokens": { "user": "", "page": "" },
+              "oauth": { "redirect_uri": "http://localhost:8080/", "scopes": "pins:read,pins:write,boards:read,boards:write" }
+            },
+            "live": {
+              "facebook_app": { "app_id": "", "app_secret": "", "page_id": "", "group_id": "" },
+              "tokens": { "user": "", "page": "" },
+              "oauth": { "redirect_uri": "https://app.com/", "scopes": "pins:read,pins:write,boards:read,boards:write" }
+            }
+          }
+        }
+      }
+    },
+    "rakesh": {
+      "brands": {
+        "mv": {
+          "Facebook": {
+            "dev": {
+              "facebook_app": { "app_id": "1268753368113520", "app_secret": "301460da7166044fe2f25515fde0144c", "page_id": "", "group_id": "" },
+              "tokens": { "user": "EAASB7KnQYXABPZCnPkmeyAZCKLgJVoLTwISDbiM3E8mSde85YEwh9MiWGkFVKLU6Xbx8MB7GxdTZBmT9GsLONZCKP01eRzxXFEPsiX5qq709bUPofCObPf40JMRvvKZBPcKosZBMtavkzyUcNfXkpHgej2AAZAkcFVuY8jWCvLHDfmtAmBwqAtLzgHaVszmXCfHnNa8A9DH7r5dz3BZCA6YBHqXZCtWqm4Tgnppnh5ZBCGhWbcKy7JNR0qZCkUyMvHBN8Xl1TCgDmLBkNASoMnZBjTfZBN30ovCRNfyT3cgAD", "page": "EAASB7KnQYXABP6NI15Ma8I2KHOTx2eIm0qX2VYKJYNeqPRZBMO3UnVz8FJzQUoFZBt0iuZBKMJGQhQYZB4GV4KJLdR3ljuPX7QDsfq78hadgroGIzWodigVM9EiNkohJ6ZBw2DTMtZCIdqiraBmg3rY0FTUoFDYE5LZBtarL9qFUZAjtR7etVlpBCZCF5fUFAvp20jLRz9VOMUr4d" },
+              "oauth": { "redirect_uri": "http://localhost:8080/", "scopes": "pages_manage_posts,publish_video,pages_read_engagement,pages_show_list,publish_to_groups,groups_access_member_info" }
+            },
+            "live": {
+              "facebook_app": { "app_id": "1268753368113520", "app_secret": "301460da7166044fe2f25515fde0144c", "page_id": "", "group_id": "" },
+              "tokens": { "user": "EAASB7KnQYXABPZCnPkmeyAZCKLgJVoLTwISDbiM3E8mSde85YEwh9MiWGkFVKLU6Xbx8MB7GxdTZBmT9GsLONZCKP01eRzxXFEPsiX5qq709bUPofCObPf40JMRvvKZBPcKosZBMtavkzyUcNfXkpHgej2AAZAkcFVuY8jWCvLHDfmtAmBwqAtLzgHaVszmXCfHnNa8A9DH7r5dz3BZCA6YBHqXZCtWqm4Tgnppnh5ZBCGhWbcKy7JNR0qZCkUyMvHBN8Xl1TCgDmLBkNASoMnZBjTfZBN30ovCRNfyT3cgAD", "page": "EAASB7KnQYXABP6NI15Ma8I2KHOTx2eIm0qX2VYKJYNeqPRZBMO3UnVz8FJzQUoFZBt0iuZBKMJGQhQYZB4GV4KJLdR3ljuPX7QDsfq78hadgroGIzWodigVM9EiNkohJ6ZBw2DTMtZCIdqiraBmg3rY0FTUoFDYE5LZBtarL9qFUZAjtR7etVlpBCZCF5fUFAvp20jLRz9VOMUr4d" },
+              "oauth": { "redirect_uri": "http://localhost:8080/", "scopes": "pages_manage_posts,publish_video,pages_read_engagement,pages_show_list,publish_to_groups,groups_access_member_info" }
+            }
+          },
+          "Instagram": {
+            "dev": {
+              "facebook_app": { "app_id": "", "app_secret": "", "page_id": "", "group_id": "" },
+              "tokens": { "user": "", "page": "" },
+              "oauth": { "redirect_uri": "http://localhost:8080/", "scopes": "instagram_basic,instagram_content_publish,pages_show_list" }
+            },
+            "live": {
+              "facebook_app": { "app_id": "", "app_secret": "", "page_id": "", "group_id": "" },
+              "tokens": { "user": "", "page": "" },
+              "oauth": { "redirect_uri": "https://app.com/", "scopes": "instagram_basic,instagram_content_publish,pages_show_list" }
+            }
+          },
+          "Pinterest": {
+            "dev": {
+                "facebook_app": { "app_id": "", "app_secret": "", "page_id": "", "group_id": "" },
+                "tokens": { "user": "", "page": "" },
+                "oauth": { "redirect_uri": "http://localhost:8080/", "scopes": "pins:read,pins:write,boards:read,boards:write" }
+            },
+            "live": {
+                "facebook_app": { "app_id": "", "app_secret": "", "page_id": "", "group_id": "" },
+                "tokens": { "user": "", "page": "" },
+                "oauth": { "redirect_uri": "https://app.com/", "scopes": "pins:read,pins:write,boards:read,boards:write" }
+            }
+          }
+        }
+      }
+    }
+  }
+};
+
+
 // Reusable styled select component
-const StyledSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement> & { label: string; options: string[] }> = ({ label, id, options, ...props }) => (
+const StyledSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement> & { label: string; options: {value: string, label: string}[] }> = ({ label, id, options, ...props }) => (
   <div>
     <label htmlFor={id} className="block text-sm font-medium text-gray-400 mb-1">
       {label}
@@ -44,7 +141,7 @@ const StyledSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement> & { l
     >
       <option value="">Select {label}...</option>
       {options.map(option => (
-        <option key={option} value={option.toLowerCase().replace(/\s|\(|\)/g, '_')}>{option}</option>
+        <option key={option.value} value={option.value}>{option.label}</option>
       ))}
     </select>
   </div>
@@ -126,127 +223,127 @@ const ShapesContent: React.FC<{ onAddElement: (element: Omit<DesignElement, 'id'
 
 const AiSuggestContent: React.FC = () => <div className="p-4 text-gray-400">AI-powered suggestions for content and design.</div>;
 
-const PlatformConnectionConfig: React.FC<{
-  platform: string;
-  onBack: () => void;
-}> = ({ platform, onBack }) => {
-  const [brand, setBrand] = useState('');
-  const [stage, setStage] = useState('');
-  const [credentialType, setCredentialType] = useState('');
-  const [appId, setAppId] = useState('');
-  const [appSecret, setAppSecret] = useState('');
-
-  const brands = ['Nike', 'Adidas', 'Puma'];
-  const stages = ['Live', 'Dev'];
-  const credentialTypes = ['App', 'Token Page Access', 'Token User Access', 'Token Group Access'];
-
-  const generatedVariable = useMemo(() => {
-    if (!brand || !platform || !stage || !credentialType) return '';
-    const formattedBrand = brand.toUpperCase();
-    const formattedPlatform = platform.toUpperCase().replace(/\s/g, '_').replace(/\(|\)/g, '');
-    const formattedStage = stage.toUpperCase();
-    const formattedCred = credentialType.toUpperCase().replace(/\s/g, '_');
-    return `${formattedBrand}_${formattedPlatform}_${formattedStage}_${formattedCred}`;
-  }, [brand, platform, stage, credentialType]);
-
-  const canSave = brand && platform && stage && credentialType && (credentialType !== 'app' || (appId.trim() && appSecret.trim()));
-
-  return (
-    <div className="p-4 space-y-4 animate-fade-in">
-      <div className="flex items-center justify-between">
-          <h3 className="text-md font-semibold text-gray-200">Configure {platform}</h3>
-      </div>
-      <p className="text-sm text-gray-400 -mt-2">
-        Construct the precise environment variable for your post.
-      </p>
-
-      <div className="space-y-3">
-        <StyledSelect label="Brand" id="dev-brand" options={brands} value={brand} onChange={e => setBrand(e.target.value)} />
-        <StyledSelect label="Platform" id="dev-platform" options={[platform]} value={platform.toLowerCase().replace(/\s|\(|\)/g, '_')} disabled />
-        <StyledSelect label="Stage" id="dev-stage" options={stages} value={stage} onChange={e => setStage(e.target.value)} />
-        <StyledSelect 
-          label="Credential Type" 
-          id="dev-cred-type" 
-          options={credentialTypes} 
-          value={credentialType} 
-          onChange={e => {
-            const newCredType = e.target.value;
-            setCredentialType(newCredType);
-            if (newCredType !== 'app') {
-              setAppId('');
-              setAppSecret('');
-            }
-          }} 
-        />
-        {credentialType === 'app' && (
-          <div className="space-y-3 pt-2 animate-fade-in">
-              <div>
-                  <label htmlFor="app-id" className="block text-sm font-medium text-gray-400 mb-1">
-                      App ID
-                  </label>
-                  <input
-                      id="app-id"
-                      type="text"
-                      value={appId}
-                      onChange={(e) => setAppId(e.target.value)}
-                      className="w-full p-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition font-mono text-sm"
-                      placeholder="Enter the App ID"
-                  />
-              </div>
-              <div>
-                  <label htmlFor="app-secret" className="block text-sm font-medium text-gray-400 mb-1">
-                      App Secret
-                  </label>
-                  <input
-                      id="app-secret"
-                      type="password"
-                      value={appSecret}
-                      onChange={(e) => setAppSecret(e.target.value)}
-                      className="w-full p-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition font-mono text-sm"
-                      placeholder="Enter the App Secret"
-                  />
-              </div>
-          </div>
+const InputField: React.FC<{ label: string; name: string; value: string; onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void; type?: 'text' | 'password'; isTextarea?: boolean }> = ({ label, name, value, onChange, type = 'text', isTextarea = false }) => (
+    <div>
+        <label htmlFor={name} className="block text-sm font-medium text-gray-400 mb-1">{label}</label>
+        {isTextarea ? (
+            <textarea
+                id={name}
+                name={name}
+                rows={3}
+                value={value}
+                onChange={onChange}
+                className="w-full p-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition font-mono text-sm"
+            />
+        ) : (
+            <input
+                id={name}
+                name={name}
+                type={type}
+                value={value}
+                onChange={onChange}
+                className="w-full p-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition font-mono text-sm"
+            />
         )}
-      </div>
-
-      {generatedVariable && (
-        <div className="mt-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700">
-          <h4 className="text-sm font-semibold text-gray-300">Generated Variable</h4>
-          <code className="text-xs text-brand-300 font-mono break-all">{generatedVariable}</code>
-        </div>
-      )}
-      <div className="flex items-center gap-2 pt-2">
-         <button onClick={onBack} className="flex-1 px-4 py-2 text-sm font-semibold text-gray-300 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors">
-            Back
-        </button>
-        <button 
-            disabled={!canSave}
-            className="flex-1 px-4 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 rounded-lg transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed"
-        >
-            Save Configuration
-        </button>
-      </div>
     </div>
-  );
+);
+
+const PlatformConfiguration: React.FC<{
+  platform: string;
+  config: any;
+  onBack: () => void;
+  onSave: (platform: string, newConfig: any) => void;
+}> = ({ platform, config, onBack, onSave }) => {
+    const [stage, setStage] = useState<'dev' | 'live'>('dev');
+    const [formState, setFormState] = useState(config || {});
+
+    const handleInputChange = (section: string, field: string, value: string) => {
+        setFormState((prev: any) => ({
+            ...prev,
+            [stage]: {
+                ...prev[stage],
+                [section]: {
+                    ...prev[stage][section],
+                    [field]: value
+                }
+            }
+        }));
+    };
+    
+    const currentConfig = formState[stage] || {};
+
+    return (
+        <div className="p-4 space-y-4 animate-fade-in flex flex-col h-full">
+            <h3 className="text-md font-semibold text-gray-200">Configure {platform}</h3>
+
+            <div className="flex-shrink-0">
+                <div className="flex p-1 bg-gray-800 rounded-lg border border-gray-700">
+                    <button onClick={() => setStage('dev')} className={`flex-1 py-1.5 rounded-md text-sm font-semibold transition-colors ${stage === 'dev' ? 'bg-brand-600' : 'text-gray-400 hover:bg-gray-700'}`}>
+                        Development
+                    </button>
+                    <button onClick={() => setStage('live')} className={`flex-1 py-1.5 rounded-md text-sm font-semibold transition-colors ${stage === 'live' ? 'bg-brand-600' : 'text-gray-400 hover:bg-gray-700'}`}>
+                        Live
+                    </button>
+                </div>
+            </div>
+
+            <div className="space-y-6 flex-grow overflow-y-auto pr-2">
+                <div>
+                    <h4 className="font-semibold text-gray-300 mb-2 border-b border-gray-700 pb-1">App Credentials</h4>
+                    <div className="space-y-3 mt-2">
+                        <InputField label="App ID" name="app_id" value={currentConfig.facebook_app?.app_id || ''} onChange={(e) => handleInputChange('facebook_app', 'app_id', e.target.value)} />
+                        <InputField label="App Secret" name="app_secret" value={currentConfig.facebook_app?.app_secret || ''} onChange={(e) => handleInputChange('facebook_app', 'app_secret', e.target.value)} type="password" />
+                        <InputField label="Page ID" name="page_id" value={currentConfig.facebook_app?.page_id || ''} onChange={(e) => handleInputChange('facebook_app', 'page_id', e.target.value)} />
+                        <InputField label="Group ID" name="group_id" value={currentConfig.facebook_app?.group_id || ''} onChange={(e) => handleInputChange('facebook_app', 'group_id', e.target.value)} />
+                    </div>
+                </div>
+                <div>
+                    <h4 className="font-semibold text-gray-300 mb-2 border-b border-gray-700 pb-1">Tokens</h4>
+                    <div className="space-y-3 mt-2">
+                        <InputField label="User Token" name="user" value={currentConfig.tokens?.user || ''} onChange={(e) => handleInputChange('tokens', 'user', e.target.value)} isTextarea />
+                        <InputField label="Page Token" name="page" value={currentConfig.tokens?.page || ''} onChange={(e) => handleInputChange('tokens', 'page', e.target.value)} isTextarea />
+                    </div>
+                </div>
+                <div>
+                    <h4 className="font-semibold text-gray-300 mb-2 border-b border-gray-700 pb-1">OAuth Settings</h4>
+                    <div className="space-y-3 mt-2">
+                        <InputField label="Redirect URI" name="redirect_uri" value={currentConfig.oauth?.redirect_uri || ''} onChange={(e) => handleInputChange('oauth', 'redirect_uri', e.target.value)} />
+                        <InputField label="Scopes" name="scopes" value={currentConfig.oauth?.scopes || ''} onChange={(e) => handleInputChange('oauth', 'scopes', e.target.value)} isTextarea />
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2 mt-auto flex-shrink-0">
+                <button onClick={onBack} className="flex-1 px-4 py-2 text-sm font-semibold text-gray-300 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors">
+                    Back
+                </button>
+                <button
+                    onClick={() => onSave(platform, formState)}
+                    className="flex-1 px-4 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 rounded-lg transition-colors"
+                >
+                    Save Configuration
+                </button>
+            </div>
+        </div>
+    );
 };
 
 
 const BrandingContent: React.FC = () => {
+    const [appConfig, setAppConfig] = useState(initialAppConfig);
+    const [currentUser, setCurrentUser] = useState(initialAppConfig.current_selection.user);
+    const [currentBrand, setCurrentBrand] = useState(initialAppConfig.current_selection.brand);
+
     const [connectedAccounts, setConnectedAccounts] = useState<Set<string>>(new Set());
     const [configPlatform, setConfigPlatform] = useState<string | null>(null);
 
     // This effect handles the OAuth popup callback
     useEffect(() => {
         const handleAuthMessage = (event: MessageEvent) => {
-            // IMPORTANT: Check the origin for security in a real production app
-            // if (event.origin !== window.location.origin) return;
-
             const { type, platform, token } = event.data;
             if (type === 'auth-success' && platform && token) {
                 console.log(`Auth success for ${platform}`);
                 setConnectedAccounts(prev => new Set(prev).add(platform));
-                // Store the JWT for API calls
                 localStorage.setItem(`${platform}_jwt`, token);
             } else if (type === 'auth-failure') {
                 console.error(`Auth failed for ${platform}`);
@@ -272,31 +369,67 @@ const BrandingContent: React.FC = () => {
         localStorage.removeItem(`${platformId}_jwt`);
     };
 
-    if (configPlatform) {
-        return <PlatformConnectionConfig platform={configPlatform} onBack={() => setConfigPlatform(null)} />;
-    }
+    const handleSavePlatformConfig = (platform: string, newConfig: any) => {
+        setAppConfig(prev => {
+            const newAppConfig = JSON.parse(JSON.stringify(prev)); // Deep copy
+            newAppConfig.users[currentUser].brands[currentBrand][platform] = newConfig;
+            newAppConfig.last_saved = new Date().toISOString();
+            return newAppConfig;
+        });
+        setConfigPlatform(null); // Go back to main branding view
+    };
 
+    const handleAddBrand = () => {
+        const newBrandName = prompt("Enter a name for the new brand:");
+        if (newBrandName && newBrandName.trim()) {
+            setAppConfig(prev => {
+                const newAppConfig = JSON.parse(JSON.stringify(prev));
+                if (!newAppConfig.users[currentUser].brands[newBrandName]) {
+                    newAppConfig.users[currentUser].brands[newBrandName] = {};
+                    setCurrentBrand(newBrandName);
+                } else {
+                    alert("A brand with this name already exists.");
+                }
+                return newAppConfig;
+            });
+        }
+    };
+
+    if (configPlatform) {
+        const platformConfigData = appConfig.users[currentUser]?.brands[currentBrand]?.[configPlatform] || {};
+        return <PlatformConfiguration
+            platform={configPlatform}
+            config={platformConfigData}
+            onBack={() => setConfigPlatform(null)}
+            onSave={handleSavePlatformConfig}
+        />;
+    }
+    
     const socialAccounts = [
-        { id: 'meta', name: 'Meta', icon: 'meta', authId: 'facebook' },
+        { id: 'facebook', name: 'Facebook', icon: 'facebook', authId: 'facebook' },
+        { id: 'instagram', name: 'Instagram', icon: 'instagram', authId: 'facebook' },
+        { id: 'pinterest', name: 'Pinterest', icon: 'pinterest', authId: 'pinterest' },
         { id: 'x', name: 'X (Twitter)', icon: 'x', authId: 'twitter' },
         { id: 'linkedin', name: 'LinkedIn', icon: 'linkedin', authId: 'linkedin' },
         { id: 'tiktok', name: 'TikTok', icon: 'tiktok', authId: 'tiktok' },
     ];
+    
+    const userOptions = Object.keys(appConfig.users).map(u => ({ value: u, label: u }));
+    const brandOptions = currentUser ? Object.keys(appConfig.users[currentUser].brands).map(b => ({ value: b, label: b })) : [];
 
     return (
         <div className="p-4 space-y-6">
             <div>
-                <h3 className="text-md font-semibold text-gray-200">Brand Kit</h3>
-                <div className="mt-2 p-4 bg-gray-800/50 rounded-lg border border-gray-700/50 flex items-center gap-4">
-                    <div className="w-16 h-16 bg-gray-700 rounded-md flex items-center justify-center">
-                        <Icon name="logo" className="w-8 h-8 text-brand-400" />
-                    </div>
-                    <div>
-                        <h4 className="font-semibold text-white">Your Brand</h4>
-                        <button className="text-sm text-brand-400 hover:text-brand-300">Upload Logo</button>
-                    </div>
+                <h3 className="text-md font-semibold text-gray-200">Configuration Context</h3>
+                <div className="mt-2 p-4 bg-gray-800/50 rounded-lg border border-gray-700/50 space-y-3">
+                    <StyledSelect label="User" id="config-user" options={userOptions} value={currentUser} onChange={e => setCurrentUser(e.target.value)} />
+                    <StyledSelect label="Brand" id="config-brand" options={brandOptions} value={currentBrand} onChange={e => setCurrentBrand(e.target.value)} />
+                    <button onClick={handleAddBrand} className="w-full text-sm text-brand-400 hover:text-brand-300 mt-1 text-left">
+                        + Add New Brand
+                    </button>
                 </div>
             </div>
+
             <div>
                 <h3 className="text-md font-semibold text-gray-200">Platform Connections</h3>
                 <div className="mt-2 space-y-2">
@@ -311,13 +444,15 @@ const BrandingContent: React.FC = () => {
                                 <div className="flex items-center gap-2">
                                      <button 
                                         onClick={() => setConfigPlatform(account.name)}
-                                        className="text-xs font-semibold bg-gray-700 hover:bg-gray-600 text-white rounded-md py-1 px-3 transition-colors"
+                                        disabled={!currentUser || !currentBrand}
+                                        className="text-xs font-semibold bg-gray-700 hover:bg-gray-600 text-white rounded-md py-1 px-3 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         Configure
                                     </button>
                                     <button 
                                         onClick={() => isConnected ? handleDisconnect(account.id) : handleConnect(account.authId)}
-                                        className={`text-xs font-semibold rounded-md py-1 px-3 transition-colors ${isConnected ? 'bg-red-900/60 hover:bg-red-800/70 text-red-300' : 'bg-brand-600 hover:bg-brand-500 text-white'}`}
+                                        disabled={!currentUser || !currentBrand}
+                                        className={`text-xs font-semibold rounded-md py-1 px-3 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isConnected ? 'bg-red-900/60 hover:bg-red-800/70 text-red-300' : 'bg-brand-600 hover:bg-brand-500 text-white'}`}
                                     >
                                         {isConnected ? 'Disconnect' : 'Connect'}
                                     </button>
@@ -849,6 +984,7 @@ const ServerContent: React.FC = () => {
     const [testResult, setTestResult] = useState<{ status: 'idle' | 'testing' | 'success' | 'error'; message: string } | null>(null);
     const [logs, setLogs] = useState<string | null>(null);
     const [isLoadingLogs, setIsLoadingLogs] = useState<boolean>(false);
+    const [isAuthToolsVisible, setIsAuthToolsVisible] = useState(false);
 
     const handleViewLogs = async () => {
       setIsLoadingLogs(true);
@@ -947,6 +1083,8 @@ const ServerContent: React.FC = () => {
         } catch (error) {
             console.error('Connection attempt failed:', error);
             setStatus('disconnected');
+            // FIX: The 'error' variable in a catch block is of type 'unknown'. We must perform a type check
+            // before accessing properties like 'message' to avoid runtime errors and satisfy TypeScript.
             let message = error instanceof Error ? error.message : 'Connection failed. Is the server running?';
             // @ts-ignore
             if (window.aistudio && message.toLowerCase().includes('status: 404')) {
@@ -969,6 +1107,8 @@ const ServerContent: React.FC = () => {
             setTestResult({ status: 'success', message: data.message || 'Successfully connected!' });
         } catch (error) {
             console.error('Connection test failed:', error);
+            // FIX: Safely handle the caught error by checking if it's an instance of Error.
+            // This allows us to access the 'message' property without causing a type error.
             let message = error instanceof Error ? error.message : 'Connection failed. Is the server running?';
             // @ts-ignore
             if (window.aistudio && message.toLowerCase().includes('status: 404')) {
@@ -1079,6 +1219,18 @@ const ServerContent: React.FC = () => {
                         </pre>
                     </div>
                 )}
+            </div>
+
+            <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                <div className="flex justify-between items-center cursor-pointer" onClick={() => setIsAuthToolsVisible(!isAuthToolsVisible)}>
+                    <h3 className="text-md font-semibold text-gray-200">Platform Authentication & Token Tools</h3>
+                    <Icon name={isAuthToolsVisible ? 'minus' : 'plus'} className="w-5 h-5 text-gray-400" />
+                </div>
+                 {isAuthToolsVisible && (
+                    <div className="mt-4 animate-fade-in">
+                        <PlatformAuthTools />
+                    </div>
+                 )}
             </div>
             
             <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
