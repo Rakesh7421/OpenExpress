@@ -7,6 +7,7 @@ import json
 import getpass
 import shutil
 import ctypes
+import time
 from datetime import datetime
 
 # --- Configuration ---
@@ -17,10 +18,8 @@ FRONTEND_DIR = ROOT_DIR
 PYTHON_SERVER_SCRIPT_TXT = os.path.join(SERVER_DIR, 'server_py.txt')
 PACKAGE_JSON = os.path.join(FRONTEND_DIR, 'package.json')
 NODE_MODULES_LINK_PATH = os.path.join(FRONTEND_DIR, 'node_modules')
-VITE_PLUGIN_REACT = '@vitejs/plugin-react'
 
 # --- Configuration for 'Tempo' user on Windows ---
-# These paths will be used automatically if the script detects it's run by 'Tempo' on Windows.
 TEMPO_PYTHON_EXECUTABLE = os.path.join('D:\\', 'installer_files', '.venv', 'Scripts', 'python.exe')
 TEMPO_NODE_MODULES_TARGET = os.path.join('D:\\', 'installer_files', 'node_modules', 'openexpress', 'node_modules')
 TEMPO_ENV_PATH = os.path.join('F:\\', 'Codebase', 'EnvSetup', 'cred', '.env', 'OpenExpress', '.env')
@@ -55,7 +54,9 @@ def is_admin():
             return ctypes.windll.shell32.IsUserAnAdmin() != 0
         except Exception:
             return False
-    return True
+    # Assume admin/root for non-Windows systems for simplicity
+    return os.geteuid() == 0 if hasattr(os, 'geteuid') else True
+
 
 def setup_node_modules_junction():
     if not is_user_tempo():
@@ -66,45 +67,47 @@ def setup_node_modules_junction():
 
     log("Setting up centralized node_modules junction...")
 
-    # Forcefully remove any existing node_modules (folder or symlink) from the project directory.
     if os.path.lexists(NODE_MODULES_LINK_PATH):
         log(f"Found existing item at '{NODE_MODULES_LINK_PATH}'. Removing it.")
         try:
-            if os.path.islink(NODE_MODULES_LINK_PATH) or os.path.isfile(NODE_MODULES_LINK_PATH):
-                os.remove(NODE_MODULES_LINK_PATH)
-                log("Successfully removed existing file/symlink.")
-            elif os.path.isdir(NODE_MODULES_LINK_PATH):
-                shutil.rmtree(NODE_MODULES_LINK_PATH)
-                log("Successfully removed existing directory.")
-        except Exception as e:
-            log(f"Error removing existing node_modules item: {e}")
-            log("Attempting forceful removal with command line...")
-            try:
+            if os.path.isdir(NODE_MODULES_LINK_PATH) and not os.path.islink(NODE_MODULES_LINK_PATH):
                 subprocess.check_call(f'rmdir /s /q "{NODE_MODULES_LINK_PATH}"', shell=True, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
-                log("Forceful removal successful.")
+            else:
+                subprocess.check_call(f'del /f /q "{NODE_MODULES_LINK_PATH}"', shell=True, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+            log("Forceful removal command executed.")
+        except Exception as e:
+            log(f"Command-line removal failed: {e}. Trying Python's shutil...")
+            try:
+                if os.path.islink(NODE_MODULES_LINK_PATH) or os.path.isfile(NODE_MODULES_LINK_PATH):
+                    os.remove(NODE_MODULES_LINK_PATH)
+                elif os.path.isdir(NODE_MODULES_LINK_PATH):
+                    shutil.rmtree(NODE_MODULES_LINK_PATH)
+                log("shutil removal successful.")
             except Exception as e2:
-                log(f"Forceful removal also failed: {e2}")
+                log(f"❌ Critical Error: All attempts to remove '{NODE_MODULES_LINK_PATH}' have failed: {e2}")
                 return False
+        
+        log("Waiting for filesystem to update...")
+        time.sleep(0.5)
+        if os.path.lexists(NODE_MODULES_LINK_PATH):
+            log(f"❌ Critical Error: '{NODE_MODULES_LINK_PATH}' still exists after removal attempts. Cannot create junction.")
+            return False
+        log("✅ Removal confirmed.")
 
-    # Make sure the centralized target directory exists
     try:
         os.makedirs(TEMPO_NODE_MODULES_TARGET, exist_ok=True)
     except Exception as e:
         log(f"Failed to create target directory '{TEMPO_NODE_MODULES_TARGET}': {e}")
         return False
 
-    # Create the junction link
     command = f'mklink /J "{NODE_MODULES_LINK_PATH}" "{TEMPO_NODE_MODULES_TARGET}"'
     log(f"Executing: {command}")
     try:
-        subprocess.check_call(
-            command,
-            shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )
-        log("Successfully created junction for node_modules.")
+        subprocess.check_call(command, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        log("✅ Successfully created junction for node_modules.")
         return True
     except subprocess.CalledProcessError as e:
-        log(f"Error: Failed to create junction. This can happen if the link path still exists or due to permissions issues.")
+        log(f"❌ Error: Failed to create junction. This can happen due to permissions issues or if the link path still exists.")
         log(f"Command failed with error: {e}")
         return False
 
@@ -134,64 +137,113 @@ def prepare_package_json():
         log(f"Failed to create package.json: {e}")
         return False
 
-def run_command_filtered(command, working_dir, name):
-    log(f"{name}: Running command: {' '.join(command)}")
+def run_pip_install(command, working_dir, name):
+    log(f"{name}: Checking dependencies...")
     try:
-        use_shell = platform.system() == 'Windows'
-        process = subprocess.Popen(
-            command, cwd=working_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, shell=use_shell, encoding='utf-8', errors='replace'
+        process = subprocess.run(
+            command, cwd=working_dir, capture_output=True, text=True,
+            shell=platform.system() == 'Windows', encoding='utf-8', errors='replace'
         )
-        for line in iter(process.stdout.readline, ''):
-            if line.strip():
-                print(f"[{name}] {line}", end='')
-        process.wait()
-        if process.returncode != 0:
-            log(f"{name}: Command failed with exit code {process.returncode}")
+        output = process.stdout + process.stderr
+        lines = [line.strip() for line in output.splitlines() if line.strip()]
+        
+        is_already_satisfied = True
+        has_lines = False
+        for line in lines:
+            has_lines = True
+            if "Requirement already satisfied" not in line:
+                is_already_satisfied = False
+                break
+        
+        if has_lines and is_already_satisfied:
+            log(f"{name}: ✅ All dependencies are already installed.")
+            return True
+        else:
+            log(f"{name}: Installing/updating dependencies...")
+            print(output)
+            if process.returncode != 0:
+                log(f"{name}: ❌ Command failed with exit code {process.returncode}")
+                return False
+            log(f"{name}: ✅ Dependencies installed successfully.")
+            return True
+
     except Exception as e:
         log(f"{name}-ERR: {e}")
+        return False
 
 def install_backend_dependencies():
     print_header("Installing Backend (Python) Dependencies")
-    log("Installing Python dependencies for local server...")
-    run_command_filtered([PYTHON_EXECUTABLE, '-m', 'pip', 'install', '-r', os.path.join(SERVER_DIR, 'requirements.txt')], SERVER_DIR, "pip-server")
-    log("Installing Python dependencies for Vercel deployment...")
-    run_command_filtered([PYTHON_EXECUTABLE, '-m', 'pip', 'install', '-r', os.path.join(ROOT_DIR, 'requirements.txt')], ROOT_DIR, "pip-vercel")
+    run_pip_install([PYTHON_EXECUTABLE, '-m', 'pip', 'install', '-r', os.path.join(SERVER_DIR, 'requirements.txt')], SERVER_DIR, "pip-server")
+    run_pip_install([PYTHON_EXECUTABLE, '-m', 'pip', 'install', '-r', os.path.join(ROOT_DIR, 'requirements.txt')], ROOT_DIR, "pip-vercel")
 
 def install_frontend_dependencies():
     print_header("Installing Frontend (Node.js) Dependencies")
     if not prepare_package_json():
-        log("Failed to prepare package.json, skipping npm install")
+        log("Failed to prepare package.json, skipping npm install.")
         return
 
     if is_user_tempo():
         if not setup_node_modules_junction():
-            log("Failed to setup centralized node_modules. Aborting frontend dependency installation.")
+            log("❌ Failed to setup centralized node_modules. Aborting frontend dependency installation.")
             return
-    else:
-        # For non-Tempo users, just ensure the local directory is clean
-        if os.path.lexists(NODE_MODULES_LINK_PATH):
-            log(f"Removing existing node_modules from project directory: {NODE_MODULES_LINK_PATH}")
-            try:
-                shutil.rmtree(NODE_MODULES_LINK_PATH)
-            except Exception as e:
-                log(f"Failed to remove node_modules: {e}")
+    elif os.path.lexists(NODE_MODULES_LINK_PATH):
+        log(f"Removing existing node_modules from project directory: {NODE_MODULES_LINK_PATH}")
+        try:
+            shutil.rmtree(NODE_MODULES_LINK_PATH)
+        except Exception as e:
+            log(f"Failed to remove node_modules: {e}")
     
     log("Cleaning npm cache...")
     subprocess.run(['npm', 'cache', 'clean', '--force'], cwd=FRONTEND_DIR, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
-    log("Installing Node.js dependencies via npm...")
-    run_command_filtered(['npm', 'install'], FRONTEND_DIR, "npm")
+    log("Installing Node.js dependencies via npm (this may take a moment)...")
+    try:
+        use_shell = platform.system() == 'Windows'
+        process = subprocess.Popen(
+            ['npm', 'install'], cwd=FRONTEND_DIR, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, shell=use_shell, encoding='utf-8', errors='replace'
+        )
+        
+        output_lines = []
+        for line in iter(process.stdout.readline, ''):
+            line_strip = line.strip()
+            if line_strip:
+                print(f"[npm] {line_strip}")
+                output_lines.append(line_strip)
+        
+        process.wait()
+        
+        if process.returncode != 0:
+            log(f"❌ npm install failed with exit code {process.returncode}.")
+            output_lower = ''.join(output_lines).lower()
+            if "enoent" in output_lower and "package.json" in output_lower:
+                log("Hint: npm reported it couldn't find 'package.json'. Please check file integrity.")
+            if "e404" in output_lower:
+                log("Hint: npm reported a '404 Not Found' error. A package may be misspelled or unavailable.")
+            if "eresolve" in output_lower:
+                 log("Hint: npm reported a dependency conflict ('ERESOLVE'). Try deleting 'package-lock.json' and running again.")
+            return
+    except Exception as e:
+        log(f"An exception occurred during npm install: {e}")
+        return
 
-    # Ensure @vitejs/plugin-react is installed
+    log("✅ npm install completed. Verifying key packages...")
     check_path = TEMPO_NODE_MODULES_TARGET if is_user_tempo() else NODE_MODULES_LINK_PATH
-    plugin_path = os.path.join(check_path, VITE_PLUGIN_REACT)
-
-    if not os.path.exists(plugin_path):
-        log(f"{VITE_PLUGIN_REACT} appears to be missing after install, attempting to install it directly...")
-        run_command_filtered(['npm', 'install', VITE_PLUGIN_REACT, '--save-dev'], FRONTEND_DIR, "npm-vite-plugin")
-    
+    key_packages = ['vite', 'react', 'react-dom', '@google/genai']
+    missing_key_packages = []
+    for pkg in key_packages:
+        if not os.path.exists(os.path.join(check_path, pkg)):
+            missing_key_packages.append(pkg)
+            
+    if missing_key_packages:
+        log("⚠️ The following key packages seem to be missing after installation:")
+        for pkg in missing_key_packages:
+            print(f"  - {pkg}")
+        log("This might indicate a problem with the npm installation or dependency resolution.")
+    else:
+        log("✅ All key packages verified.")
     log("Frontend dependency installation complete.")
+
 
 def install_all_dependencies():
     install_backend_dependencies()
@@ -223,26 +275,20 @@ def run_python_server():
 def run_frontend_dev_server():
     print_header("Running Frontend Dev Server")
     
-    if is_user_tempo() and not os.path.exists(NODE_MODULES_LINK_PATH):
-        log("Junction link for node_modules not found. Run 'Install Frontend Dependencies' first.")
-        return
-    elif not is_user_tempo() and not os.path.isdir(NODE_MODULES_LINK_PATH):
-        log("node_modules missing, run 'Install Frontend Dependencies' first.")
+    if (is_user_tempo() and not os.path.exists(NODE_MODULES_LINK_PATH)) or \
+       (not is_user_tempo() and not os.path.isdir(NODE_MODULES_LINK_PATH)):
+        log("node_modules missing. Run 'Install Frontend Dependencies' first.")
         return
         
     vite_bin = os.path.join(NODE_MODULES_LINK_PATH, ".bin", "vite.cmd" if platform.system()=="Windows" else "vite")
     if not os.path.exists(vite_bin):
-        log("Vite executable not found. Trying to install dependencies first...")
-        install_frontend_dependencies()
-        if not os.path.exists(vite_bin):
-            log("Vite is still missing after install attempt. Cannot start server.")
-            return
+        log("Vite executable not found in node_modules. Run 'Install Frontend Dependencies' again.")
+        return
 
     run_command(['npm', 'run', 'dev'], FRONTEND_DIR, "Frontend", env=os.environ.copy())
 
 def run_all_services():
     print_header("Starting All Services")
-    # No need to run install again if user just wants to run
     threads = [threading.Thread(target=run_python_server),
                threading.Thread(target=run_frontend_dev_server)]
     for t in threads: t.start()
@@ -281,15 +327,7 @@ def check_environment():
 def log_errors_only():
     print_header("Aggregating Error Logs")
     
-    # Determine source and destination paths
-    log_dir_project = os.path.join(ROOT_DIR, 'logs')
-    source_log_dir = log_dir_project
-    dest_log_dir = log_dir_project
-
-    if is_user_tempo():
-        source_log_dir = TEMPO_LOGS_DIR
-        dest_log_dir = TEMPO_LOGS_DIR
-
+    source_log_dir = TEMPO_LOGS_DIR if is_user_tempo() else os.path.join(ROOT_DIR, 'logs')
     source_log_file = os.path.join(source_log_dir, 'server.log')
 
     if not os.path.exists(source_log_file):
@@ -297,32 +335,24 @@ def log_errors_only():
         log("Please run the Python server to generate logs first.")
         return
     
-    try:
-        os.makedirs(dest_log_dir, exist_ok=True)
-    except Exception as e:
-        log(f"Error: Could not create destination directory {dest_log_dir}: {e}")
-        return
+    dest_error_file = os.path.join(source_log_dir, 'errors.log')
+    if not os.path.exists(source_log_dir):
+        os.makedirs(source_log_dir, exist_ok=True)
         
-    dest_error_file = os.path.join(dest_log_dir, 'errors.log')
-
-    # Read source and filter for error-related lines
     error_lines = []
     try:
         with open(source_log_file, 'r', encoding='utf-8') as f:
             for line in f:
-                # Keywords to identify error lines
                 if any(keyword in line for keyword in ['ERROR', 'Exception', 'Traceback', 'failed', 'Invalid', 'Expired']):
                     error_lines.append(line)
     except Exception as e:
         log(f"Error: Could not read source log file {source_log_file}: {e}")
         return
         
-    # Write to destination file
     try:
         with open(dest_error_file, 'w', encoding='utf-8') as f:
             if error_lines:
-                f.write(f"# Error log generated at {datetime.now().isoformat()}\n")
-                f.write("="*50 + "\n")
+                f.write(f"# Error log generated at {datetime.now().isoformat()}\n" + "="*50 + "\n")
                 f.writelines(error_lines)
                 log(f"Successfully aggregated {len(error_lines)} error entries.")
             else:
