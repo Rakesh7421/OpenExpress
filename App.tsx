@@ -62,7 +62,15 @@ const App: React.FC = () => {
     }, []);
     
     const addElement = (element: Omit<DesignElement, 'id'>) => {
-        const newElement = { ...element, id: uuidv4() } as DesignElement;
+        // FIX: Spreading a discriminated union like `Omit<DesignElement, 'id'>` can widen
+        // the resulting type, losing the specific `TextElement` or `ShapeElement` form.
+        // Using a ternary operator with a check on the discriminant property (`type`)
+        // allows TypeScript to correctly create and infer the type in each branch.
+        const newElement: DesignElement =
+            element.type === ElementType.TEXT
+                ? { ...element, id: uuidv4() }
+                : { ...element, id: uuidv4() };
+
         setElements(prev => [...prev, newElement]);
         setSelectedElementId(newElement.id);
     }
