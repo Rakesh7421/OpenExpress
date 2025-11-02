@@ -54,72 +54,82 @@ def is_admin():
             return ctypes.windll.shell32.IsUserAnAdmin() != 0
         except Exception:
             return False
-    # Assume admin/root for non-Windows systems for simplicity
     return os.geteuid() == 0 if hasattr(os, 'geteuid') else True
 
 
 def setup_node_modules_junction():
     if not is_user_tempo():
         return True
+        
     if not is_admin():
-        log("⚠️ Symbolic link creation requires admin privileges on Windows. Please re-run this script as an administrator.")
-        # It might still work if Developer Mode is enabled, so we don't exit.
-        pass
+        log("="*70)
+        log("⚠️ WARNING: Administrator privileges are strongly recommended on Windows.")
+        log("   This script needs to create a symbolic link ('mklink'), which")
+        log("   often fails without elevated permissions. If the next steps fail,")
+        log("   please close this terminal and re-run it as an Administrator.")
+        log("="*70)
+        time.sleep(2) # Give user time to read
 
     log("Setting up centralized node_modules link...")
-
-    # --- Robust Removal with Native Commands ---
-    if os.path.lexists(NODE_MODULES_LINK_PATH):
-        log(f"Found existing item at '{NODE_MODULES_LINK_PATH}'. Attempting robust removal with native commands...")
-        
-        removal_command = f'rmdir /s /q "{NODE_MODULES_LINK_PATH}"'
-        log(f"Executing removal command: {removal_command}")
-        subprocess.run(removal_command, shell=True, check=False, capture_output=True)
-        
-        # --- Wait and Verify Removal ---
-        max_wait_seconds = 5
-        start_time = time.time()
-        while os.path.lexists(NODE_MODULES_LINK_PATH) and time.time() - start_time < max_wait_seconds:
-            log("Waiting for filesystem to release the path...")
-            time.sleep(0.5)
-        
-        if os.path.lexists(NODE_MODULES_LINK_PATH):
-            log(f"❌ Critical Error: Could not remove '{NODE_MODULES_LINK_PATH}' after {max_wait_seconds} seconds.")
-            log("   - Please check if a file explorer or terminal has a lock on this directory.")
-            return False
-        else:
-            log("✅ Removal confirmed.")
     
-    # --- Create Target Directory ---
+    # --- Advanced Rename-and-Link Strategy ---
+    temp_dir_name = os.path.join(FRONTEND_DIR, f"node_modules_deleteme_{int(time.time())}")
+
+    # 1. If the link path exists, rename it to free up the name
+    if os.path.lexists(NODE_MODULES_LINK_PATH):
+        log(f"Found existing item at '{NODE_MODULES_LINK_PATH}'. Renaming it to free the path.")
+        try:
+            os.rename(NODE_MODULES_LINK_PATH, temp_dir_name)
+            log(f"Successfully renamed to '{temp_dir_name}'.")
+        except OSError as e:
+            log(f"❌ Critical Error: Could not rename '{NODE_MODULES_LINK_PATH}'.")
+            log(f"   This indicates a strong file lock. Please ensure no programs")
+            log(f"   (like file explorer or another terminal) are using this directory.")
+            log(f"   Error details: {e}")
+            return False
+
+    # 2. Create the target directory if it doesn't exist
     try:
         os.makedirs(TEMPO_NODE_MODULES_TARGET, exist_ok=True)
     except Exception as e:
         log(f"Failed to create target directory '{TEMPO_NODE_MODULES_TARGET}': {e}")
+        # Attempt to clean up if we renamed something
+        if os.path.exists(temp_dir_name):
+            os.rename(temp_dir_name, NODE_MODULES_LINK_PATH)
         return False
 
-    # --- Retry Loop for Symbolic Link Creation ---
-    log("Attempting to create a symbolic link (mklink /D) instead of a junction.")
+    # 3. Now that the path is clear, create the symbolic link
     command = f'mklink /D "{NODE_MODULES_LINK_PATH}" "{TEMPO_NODE_MODULES_TARGET}"'
-    max_retries = 3
-    for attempt in range(max_retries):
-        log(f"Executing (Attempt {attempt + 1}/{max_retries}): {command}")
+    log(f"Executing: {command}")
+    try:
+        subprocess.run(command, shell=True, check=True, capture_output=True, text=True)
+        log("✅ Successfully created symbolic link for node_modules.")
+    except subprocess.CalledProcessError as e:
+        log(f"❌ Error: Failed to create symbolic link.")
+        log(f"   - Stderr: {e.stderr.strip()}")
+        log(f"   - Stdout: {e.stdout.strip()}")
+        log("   - This commonly fails due to insufficient permissions. Please try")
+        log("     running this script in a terminal with Administrator rights.")
+        # Restore the old directory if we renamed it
+        if os.path.exists(temp_dir_name):
+            log("Restoring original directory...")
+            os.rename(temp_dir_name, NODE_MODULES_LINK_PATH)
+        return False
+
+    # 4. Clean up the renamed directory
+    if os.path.exists(temp_dir_name):
+        log(f"Cleaning up temporary directory: {temp_dir_name}")
         try:
-            # Use subprocess.run for better error capture
-            subprocess.run(command, shell=True, check=True, capture_output=True, text=True)
-            log("✅ Successfully created symbolic link for node_modules.")
-            return True
-        except subprocess.CalledProcessError as e:
-            log(f"⚠️ Attempt {attempt + 1} failed.")
-            log(f"   - Stderr: {e.stderr.strip()}")
-            log(f"   - Stdout: {e.stdout.strip()}")
-            if attempt < max_retries - 1:
-                log("Retrying after a short delay...")
-                time.sleep(1)
-            else:
-                log(f"❌ Error: Failed to create symbolic link after {max_retries} attempts.")
-                log("   - This often requires running the script with Administrator privileges on Windows.")
-                return False
-    return False
+            # Use shutil.rmtree for robust recursive deletion
+            shutil.rmtree(temp_dir_name)
+            log("✅ Cleanup successful.")
+        except OSError as e:
+            log(f"⚠️ Warning: Could not clean up the temporary directory '{temp_dir_name}'.")
+            log("   You may need to delete it manually.")
+            log(f"   Error: {e}")
+
+    return True
+
 
 def print_header(title: str):
     print("\n" + "="*50)
@@ -199,7 +209,10 @@ def install_frontend_dependencies():
     elif os.path.lexists(NODE_MODULES_LINK_PATH):
         log(f"Removing existing node_modules from project directory: {NODE_MODULES_LINK_PATH}")
         try:
-            shutil.rmtree(NODE_MODULES_LINK_PATH)
+            if os.path.isdir(NODE_MODULES_LINK_PATH) and not os.path.islink(NODE_MODULES_LINK_PATH):
+                 shutil.rmtree(NODE_MODULES_LINK_PATH)
+            else:
+                 os.remove(NODE_MODULES_LINK_PATH)
         except Exception as e:
             log(f"Failed to remove node_modules: {e}")
     
