@@ -54,7 +54,16 @@ The application requires API keys and secrets to function correctly.
 4.  Fill in the required values, especially `GEMINI_API_KEY`, `JWT_SECRET`, and `SESSION_SECRET`.
 
 > **Note for Special User 'Tempo' on Windows:**
-> For the user `Tempo`, the application is configured to first look for the `.env` file at a specific external path: `F:\Codebase\EnvSetup\cred\.env\OpenExpress\.env`. If you are running under this configuration, place your `.env` file there instead of in the project's `secrets` directory. The local `secrets/.env` file will be ignored if the external one is found.
+> For the user `Tempo`, the application is configured to use specific paths for environment variables and Node.js modules to keep the project directory clean and share dependencies.
+>
+> - **Environment File**: The application will first look for the `.env` file at the external path `F:\Codebase\EnvSetup\cred\.env\OpenExpress\.env`. Place your `.env` file there instead of in the project's `secrets` directory.
+> - **Node.js Modules**: Instead of a local `node_modules` folder, this setup uses a centralized directory. To create the required symbolic link, run the following command in a bash shell (like Git Bash):
+>
+> ```bash
+> mkdir -p /f/installer_files/node_modules/openexpress/node_modules /f/Codebase/OpenExpress && rm -rf /f/Codebase/OpenExpress/node_modules && ln -s /f/installer_files/node_modules/openexpress/node_modules /f/Codebase/OpenExpress/node_modules && echo "✅ Symlink created successfully."
+> ```
+>
+> The automated task runner (`python tasts_py.txt`) also handles this setup, but the command above can be used for manual configuration.
 
 ### 4. Running the Application
 

@@ -128,6 +128,176 @@ def prepare_package_json():
         log(f"Failed to create package.json: {e}")
         return False
 
+# --- New Management & QA Functions ---
+def check_vercel_compatibility():
+    print_header("Checking Vercel Compatibility")
+    log("This test checks for files and configurations required for a successful Vercel deployment.")
+    
+    checks = {
+        "vercel.json exists": os.path.exists(os.path.join(ROOT_DIR, 'vercel.json')),
+        "api/index_py.txt exists": os.path.exists(os.path.join(ROOT_DIR, 'api', 'index_py.txt')),
+        "Root requirements.txt exists": os.path.exists(os.path.join(ROOT_DIR, 'requirements.txt')),
+        "'vercel-build' script in package.json": False,
+    }
+    
+    if os.path.exists(PACKAGE_JSON):
+        try:
+            with open(PACKAGE_JSON, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if data.get('scripts', {}).get('vercel-build'):
+                    checks["'vercel-build' script in package.json"] = True
+        except Exception as e:
+            log(f"Could not read package.json: {e}")
+            
+    all_ok = True
+    for check, result in checks.items():
+        if result:
+            log(f"  ✅ {check}")
+        else:
+            log(f"  ❌ {check}")
+            all_ok = False
+            
+    if all_ok:
+        log("\n✅ Vercel configuration appears to be correct.")
+    else:
+        log("\n⚠️ Some Vercel compatibility checks failed. Please review the items above.")
+
+def report_new_error():
+    print_header("Report a New Error")
+    
+    machine_types = ['win', 'vercel', 'linux', 'aistudio']
+    log("Select the machine type where the error occurred:")
+    for i, mtype in enumerate(machine_types, 1):
+        print(f"  {i}. {mtype}")
+    
+    choice = input("Enter number: ").strip()
+    try:
+        machine_type = machine_types[int(choice) - 1]
+    except (ValueError, IndexError):
+        log("❌ Invalid selection.")
+        return
+        
+    error_id = input("Enter a short, file-safe ID for the error (e.g., 'symlink_creation_failed'): ").strip()
+    if not error_id or any(c in error_id for c in ' /\\:*?"<>|'):
+        log("❌ Invalid error ID. It cannot be empty or contain special characters.")
+        return
+        
+    error_dir = os.path.join(ROOT_DIR, 'known_errors', machine_type)
+    os.makedirs(error_dir, exist_ok=True)
+    
+    error_file_path = os.path.join(error_dir, f"{error_id}.md")
+    
+    if os.path.exists(error_file_path):
+        log(f"⚠️ Error report '{error_file_path}' already exists. Aborting.")
+        return
+        
+    template = f"""
+# Error Report: {error_id}
+
+- **Machine Type:** {machine_type}
+- **Date Reported:** {datetime.now().isoformat()}
+
+## Description
+(Provide a detailed description of the error. What were you trying to do?)
+
+
+## Steps to Reproduce
+1. ...
+2. ...
+3. ...
+
+
+## Logs / Screenshots
+(Paste any relevant logs or add screenshots here)
+
+
+## Associated Patch
+(Link to the patch file if one is created, e.g., `patch/{machine_type}/{error_id}/fix.js`)
+"""
+    try:
+        with open(error_file_path, 'w', encoding='utf-8') as f:
+            f.write(template.strip())
+        log(f"✅ Successfully created new error report at: {error_file_path}")
+    except Exception as e:
+        log(f"❌ Failed to create error report file: {e}")
+
+def create_patch():
+    print_header("Create a New Patch")
+    
+    known_errors_dir = os.path.join(ROOT_DIR, 'known_errors')
+    error_reports = []
+    if os.path.isdir(known_errors_dir):
+        for root, _, files in os.walk(known_errors_dir):
+            for file in files:
+                if file.endswith('.md'):
+                    machine_type = os.path.basename(os.path.dirname(root))
+                    error_id = file.replace('.md', '')
+                    error_reports.append({'machine': machine_type, 'id': error_id})
+
+    if not error_reports:
+        log("No existing error reports found in 'known_errors/'. Please report an error first.")
+        return
+
+    log("Select the error this patch is for:")
+    for i, report in enumerate(error_reports, 1):
+        print(f"  {i}. [{report['machine']}] {report['id']}")
+
+    choice = input("Enter number: ").strip()
+    try:
+        selected_report = error_reports[int(choice) - 1]
+    except (ValueError, IndexError):
+        log("❌ Invalid selection.")
+        return
+        
+    patch_filename = input("Enter the name for the patch file (e.g., 'fix_symlink.js' or 'update_config_py.txt'): ").strip()
+    if not patch_filename or any(c in patch_filename for c in '/\\:*?"<>|'):
+        log("❌ Invalid filename.")
+        return
+
+    patch_dir = os.path.join(ROOT_DIR, 'patch', selected_report['machine'], selected_report['id'])
+    os.makedirs(patch_dir, exist_ok=True)
+    
+    patch_file_path = os.path.join(patch_dir, patch_filename)
+    
+    if os.path.exists(patch_file_path):
+        log(f"⚠️ Patch file '{patch_file_path}' already exists. Aborting.")
+        return
+        
+    try:
+        with open(patch_file_path, 'w', encoding='utf-8') as f:
+            f.write(f"# Patch for {selected_report['machine']}/{selected_report['id']}\n")
+            f.write(f"# Created at {datetime.now().isoformat()}\n\n")
+        log(f"✅ Successfully created empty patch file at: {patch_file_path}")
+        log("   Don't forget to update the corresponding error report with the patch link.")
+    except Exception as e:
+        log(f"❌ Failed to create patch file: {e}")
+
+def lint_file_formats():
+    print_header("Linting Project File Formats")
+    log("Checking for .py or .ipynb files that should use a .txt extension...")
+    
+    violations = []
+    search_dirs = [os.path.join(ROOT_DIR, 'server'), os.path.join(ROOT_DIR, 'api')]
+    
+    for directory in search_dirs:
+        if not os.path.isdir(directory):
+            continue
+        for root, _, files in os.walk(directory):
+            for file in files:
+                if file.endswith('.py') or file.endswith('.ipynb'):
+                    if '.venv' in root or 'venv' in root:
+                        continue
+                    violations.append(os.path.join(root, file))
+                    
+    if not violations:
+        log("✅ No violations found. All Python/Jupyter files seem to be correctly named with .txt extensions.")
+    else:
+        log(f"⚠️ Found {len(violations)} violation(s):")
+        for v in violations:
+            log(f"  - File '{os.path.relpath(v, ROOT_DIR)}' should be renamed with a '.txt' suffix (e.g., _py.txt or _ipynb.txt).")
+
+# --- Core Execution Functions ---
+
 def run_pip_install(command, working_dir, name):
     log(f"{name}: Checking dependencies...")
     try:
@@ -360,23 +530,41 @@ def log_errors_only():
 
 def main():
     menu = {
-        '1': ('Install Backend (Python) Dependencies', install_backend_dependencies),
-        '2': ('Install Frontend (Node) Dependencies', install_frontend_dependencies),
-        '3': ('Install All Dependencies', install_all_dependencies),
-        '4': ('Run Python API & Auth Server', run_python_server),
-        '5': ('Run Frontend Dev Server', run_frontend_dev_server),
-        '6': ('Run All Services', run_all_services),
-        '7': ('Aggregate Error Logs', log_errors_only),
-        '8': ('Check Environment', check_environment),
-        '9': ('Exit', lambda: sys.exit(0))
+        '1': ('Install All Dependencies', install_all_dependencies),
+        '2': ('Install Backend (Python) Only', install_backend_dependencies),
+        '3': ('Install Frontend (Node) Only', install_frontend_dependencies),
+        '4': ('--------------------', None),
+        '5': ('Run All Services', run_all_services),
+        '6': ('Run Python Server Only', run_python_server),
+        '7': ('Run Frontend Server Only', run_frontend_dev_server),
+        '8': ('--------------------', None),
+        '9': ('Check Environment', check_environment),
+        '10': ('Check Vercel Compatibility', check_vercel_compatibility),
+        '11': ('Lint File Formats', lint_file_formats),
+        '12': ('--------------------', None),
+        '13': ('Aggregate Error Logs', log_errors_only),
+        '14': ('Report a New Error', report_new_error),
+        '15': ('Create a Patch for an Error', create_patch),
+        '16': ('--------------------', None),
+        '17': ('Exit', lambda: sys.exit(0))
     }
+
     while True:
         print_header("Developer Task Runner")
-        for k, (txt, _) in sorted(menu.items()):
-            print(f"{k}. {txt}")
+        for k, (txt, func) in sorted(menu.items(), key=lambda item: int(item[0])):
+            if func is None:
+                print(f"   {txt}")
+            else:
+                print(f"{k.rjust(2)}. {txt}")
+        
         choice = input("Select option: ").strip()
+        
         if choice in menu:
-            menu[choice][1]()
+            action = menu[choice][1]
+            if action:
+                action()
+            else: # It's a separator
+                continue
         else:
             log("Invalid choice")
 
