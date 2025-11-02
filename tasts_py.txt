@@ -1,3 +1,4 @@
+--- tasts_py.txt
 import os
 import subprocess
 import platform
@@ -437,15 +438,20 @@ def run_python_server():
 def run_frontend_dev_server():
     print_header("Running Frontend Dev Server")
     
-    if not os.path.isdir(NODE_MODULES_LINK_PATH):
-        log("node_modules missing. Run 'Install Frontend Dependencies' first.")
-        return
+    vite_bin_path = os.path.join(NODE_MODULES_LINK_PATH, ".bin", "vite.cmd" if platform.system()=="Windows" else "vite")
+    
+    # Automatically install dependencies if they are missing
+    if not os.path.exists(vite_bin_path):
+        log("Vite executable not found. Attempting to install frontend dependencies automatically...")
+        install_frontend_dependencies()
         
-    vite_bin = os.path.join(NODE_MODULES_LINK_PATH, ".bin", "vite.cmd" if platform.system()=="Windows" else "vite")
-    if not os.path.exists(vite_bin):
-        log("Vite executable not found in node_modules. Run 'Install Frontend Dependencies' again.")
-        return
+        # After installation, check again.
+        if not os.path.exists(vite_bin_path):
+            log("❌ Automatic installation failed or Vite was still not found.")
+            log("   Please try running 'Install Frontend Dependencies' manually from the menu.")
+            return
 
+    # If we get here, Vite should exist.
     run_command(['npm', 'run', 'dev'], FRONTEND_DIR, "Frontend", env=os.environ.copy())
 
 def run_all_services():
