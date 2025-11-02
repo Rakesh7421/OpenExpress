@@ -1,76 +1,95 @@
 
 import React from 'react';
-import BrandingContent from './BrandingContent';
-import FeatureAnalysisContent from './FeatureAnalysisContent';
-import ContentPlanner from './ContentPlanner';
-import PlatformAuthTools from './PlatformAuthTools';
+import { ElementType, AppVersion } from '../types';
+import ContentPlanner from './Planner/ContentPlanner';
+import BrandingContent from './Branding/BrandingContent';
+import FeatureAnalysisContent from './FeatureAnalysis/FeatureAnalysisContent';
+import PlatformAuthTools from './Server/PlatformAuthTools';
+import { Icon } from './common/Icon';
+import { AppConfig } from '../config/appConfig';
 
-const StandaloneAISuggestions: React.FC = () => {
-    return (
-        <div className="p-8">
-            <h2 className="text-2xl font-bold mb-4">AI Tools</h2>
-            <p className="text-gray-400">This section would contain advanced AI features, like content generation, image suggestions, and more.</p>
-        </div>
-    )
+interface ContentPanelProps {
+  activeItem: string;
+  onAddElement: (type: ElementType) => void;
+  onPushFeature: (featureId: string) => void;
+  version: AppVersion;
+  pushedFeatures: Set<string>;
+  appConfig: AppConfig;
+  setAppConfig: React.Dispatch<React.SetStateAction<AppConfig>>;
 }
 
-const ServerPanel: React.FC = () => (
-    <div className="p-4 space-y-4">
-        <h2 className="text-xl font-bold mb-4">Server & Integrations</h2>
-        <p className="text-gray-400">Manage platform connections and server settings.</p>
-        <PlatformAuthTools />
+const TextPanel: React.FC<{onAddElement: (type: ElementType) => void}> = ({ onAddElement }) => (
+    <div className='p-4 space-y-2'>
+        <button onClick={() => onAddElement(ElementType.TEXT)} className="w-full p-2 bg-gray-700 hover:bg-gray-600 rounded-md text-left">Add Heading</button>
     </div>
-)
-
-
-const NotImplementedPanel: React.FC<{ name: string }> = ({ name }) => (
-  <div className="w-full h-full flex items-center justify-center p-8 bg-gray-800">
-    <div className="text-center">
-      <h2 className="text-3xl font-bold text-gray-400">{name}</h2>
-      <p className="mt-2 text-lg text-gray-500">This feature is not yet implemented.</p>
+);
+const ShapesPanel: React.FC<{onAddElement: (type: ElementType) => void}> = ({ onAddElement }) => (
+    <div className='p-4 space-y-2'>
+        <button onClick={() => onAddElement(ElementType.SHAPE)} className="w-full p-2 bg-gray-700 hover:bg-gray-600 rounded-md text-left">Add Rectangle</button>
     </div>
-  </div>
 );
 
-
-const ContentPanel: React.FC<{ activePanel: string }> = ({ activePanel }) => {
-    const renderPanel = () => {
-        switch (activePanel) {
-            case 'ai':
-                return <StandaloneAISuggestions />;
-            case 'branding':
-                return <BrandingContent />;
-            case 'planner':
-                return <ContentPlanner />;
-            case 'feature-analysis':
-                return <FeatureAnalysisContent />;
-            case 'server':
-                return <ServerPanel />;
-            case 'checklist':
-                return <NotImplementedPanel name="Deployment Checklist" />;
-            case 'push':
-                return <NotImplementedPanel name="Push to Client" />;
-             case 'collaboration':
-                return <NotImplementedPanel name="Collaboration Tools" />;
-            case 'version-control':
-                return <NotImplementedPanel name="Version Control" />;
-            case 'integrations':
-                return <NotImplementedPanel name="Integrations" />;
-            default:
-                return (
-                    <div className="p-4">
-                        <h2 className="text-xl font-bold">Content Panel</h2>
-                        <p>Selected: {activePanel}</p>
-                    </div>
-                );
-        }
-    };
+const PushPanel: React.FC<{pushedFeatures: Set<string>, onPushFeature: (featureId: string) => void}> = ({ pushedFeatures, onPushFeature }) => {
+    const featuresToPush = ['ai', 'branding', 'collaboration', 'version-control', 'integrations', 'feature-analysis', 'server', 'checklist'];
 
     return (
-        <div className="w-full h-full bg-gray-800 overflow-y-auto">
-            {renderPanel()}
+        <div className="p-4 space-y-3">
+             <h3 className="text-md font-semibold text-gray-200">Push Features to Client</h3>
+             <p className="text-xs text-gray-400">Select features to make them available in the Client version of the app.</p>
+             <div className="space-y-2">
+                {featuresToPush.map(featureId => (
+                    <label key={featureId} className="flex items-center gap-3 p-2 bg-gray-800 rounded-md cursor-pointer hover:bg-gray-700">
+                        <input 
+                            type="checkbox" 
+                            checked={pushedFeatures.has(featureId)}
+                            onChange={() => onPushFeature(featureId)}
+                            className="w-4 h-4 rounded accent-brand-500 bg-gray-900 border-gray-600"
+                        />
+                        <span className="capitalize text-sm">{featureId.replace('-', ' ')}</span>
+                    </label>
+                ))}
+             </div>
         </div>
-    );
+    )
+};
+
+const ContentPanel: React.FC<ContentPanelProps> = (props) => {
+  const { activeItem, onAddElement, pushedFeatures, onPushFeature, appConfig, setAppConfig } = props;
+  
+  const isDesignView = ['templates', 'text', 'images', 'shapes'].includes(activeItem);
+  
+  const renderContent = () => {
+    switch (activeItem) {
+      case 'text':
+        return <TextPanel onAddElement={onAddElement} />;
+      case 'shapes':
+        return <ShapesPanel onAddElement={onAddElement} />;
+      case 'planner':
+        return <ContentPlanner appConfig={appConfig} setAppConfig={setAppConfig} />;
+      case 'branding':
+        return <BrandingContent appConfig={appConfig} setAppConfig={setAppConfig} />;
+      case 'feature-analysis':
+        return <FeatureAnalysisContent />;
+      case 'server':
+        return <PlatformAuthTools />;
+      case 'push':
+        return <PushPanel pushedFeatures={pushedFeatures} onPushFeature={onPushFeature} />;
+      default:
+        return (
+            <div className="p-4 text-center text-gray-500">
+                <Icon name={activeItem} className="w-12 h-12 mx-auto mb-2" />
+                <h3 className="font-semibold capitalize">{activeItem}</h3>
+                <p className="text-xs">Panel not implemented.</p>
+            </div>
+        );
+    }
+  };
+
+  const panelClass = isDesignView 
+    ? "w-80 bg-gray-900 border-r border-gray-700/50 overflow-y-auto"
+    : "w-full bg-gray-900 overflow-y-auto";
+
+  return <aside className={panelClass}>{renderContent()}</aside>;
 };
 
 export default ContentPanel;

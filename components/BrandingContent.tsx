@@ -1,7 +1,9 @@
+
+
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Icon } from './common/Icon';
 import { AppConfig, initialAppConfig } from '../config/appConfig';
-import WalkthroughModal from './WalkthroughModal'; // Import the new modal component
+import WalkthroughModal from './Branding/WalkthroughModal';
 
 type Status = 'idle' | 'loading' | 'success' | 'error' | 'warning';
 type Stage = 'dev' | 'live';
@@ -126,7 +128,8 @@ const BrandingContent: React.FC = () => {
             return;
         }
 
-        const authUrl = `http://localhost:8080/auth/${authProvider}`;
+        // FIX: Port was 8080, but auth server runs on 3001.
+        const authUrl = `http://localhost:3001/auth/${authProvider}`;
         window.open(authUrl, '_blank', 'width=600,height=700');
     };
 
@@ -142,6 +145,7 @@ const BrandingContent: React.FC = () => {
         const { app_id, app_secret, page_id } = currentPlatformConfig.credentials;
         const { user: user_token, page: page_token } = currentPlatformConfig.tokens;
 
+        // FIX: Explicitly type caught error to resolve compilation error.
         try {
             if (user_token && app_id && app_secret) {
                 const appAccessToken = `${app_id}|${app_secret}`;
@@ -166,7 +170,7 @@ const BrandingContent: React.FC = () => {
              
             setValidationStatus({ status: 'success', message: 'User and Page tokens are valid!' });
 
-        } catch (error) {
+        } catch (error: any) {
             const message = error instanceof Error ? error.message : "An unknown validation error occurred.";
             setValidationStatus({ status: 'error', message });
         }
@@ -184,6 +188,7 @@ const BrandingContent: React.FC = () => {
         const { user: user_token } = currentPlatformConfig.tokens;
         const required_scopes = currentPlatformConfig.oauth.scopes;
 
+        // FIX: Explicitly type caught error to resolve compilation error.
         try {
             const appAccessToken = `${app_id}|${app_secret}`;
             const debugUrl = `https://graph.facebook.com/debug_token?input_token=${user_token}&access_token=${appAccessToken}`;
@@ -205,7 +210,7 @@ const BrandingContent: React.FC = () => {
             setScopeTestResult(result);
             setValidationStatus({ status: 'success', message: 'Scope test complete.' });
 
-        } catch (error) {
+        } catch (error: any) {
              const message = error instanceof Error ? error.message : "An unknown error occurred.";
              setValidationStatus({ status: 'error', message });
         }

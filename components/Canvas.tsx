@@ -1,20 +1,23 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Icon } from './common/Icon';
-import { DesignElement, ElementType, TextElement, ShapeElement, ShapeType } from '../types';
+// FIX: Added ImageElement for more specific type in onUpdateElement prop.
+import { DesignElement, ElementType, TextElement, ShapeElement, ShapeType, ImageElement } from '../types';
 
 interface CanvasProps {
     elements: DesignElement[];
     selectedElementId: string | null;
     onSelectElement: (id: string | null) => void;
-    onUpdateElement: (id: string, updatedProperties: Partial<DesignElement>) => void;
+    // FIX: Updated updatedProperties to be a partial of a union of element types for type safety.
+    onUpdateElement: (id: string, updatedProperties: Partial<TextElement | ShapeElement | ImageElement>) => void;
 }
 
 const DraggableElement: React.FC<{
     element: DesignElement;
     isSelected: boolean;
     onSelect: (id: string) => void;
-    onUpdate: (id: string, updatedProperties: Partial<DesignElement>) => void;
+    // FIX: Updated updatedProperties to be a partial of a union of element types for type safety.
+    onUpdate: (id: string, updatedProperties: Partial<TextElement | ShapeElement | ImageElement>) => void;
 }> = ({ element, isSelected, onSelect, onUpdate }) => {
     const [interaction, setInteraction] = useState<'idle' | 'dragging' | 'resizing'>('idle');
     const dragStartPos = useRef({ x: 0, y: 0 });

@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
-import { Icon } from './common/Icon';
-import { Post } from '../types';
+import { Icon } from '../common/Icon';
+import { Post } from '../../types';
 
 interface CalendarViewProps {
     posts: Post[];
