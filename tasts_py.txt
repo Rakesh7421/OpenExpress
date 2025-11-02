@@ -5,6 +5,9 @@ import threading
 import sys
 import json
 import getpass
+import shutil
+import ctypes
+from datetime import datetime
 
 # --- Configuration ---
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -14,271 +17,322 @@ FRONTEND_DIR = ROOT_DIR
 PYTHON_SERVER_SCRIPT_TXT = os.path.join(SERVER_DIR, 'server_py.txt')
 PACKAGE_JSON = os.path.join(ROOT_DIR, 'package.json')
 
-# Configuration for 'Tempo' user on Windows
 NODE_INSTALL_DIR_TEMPO = os.path.join('D:\\', 'installer_files', 'node_modules', 'openexpress')
 NODE_MODULES_TARGET_TEMPO = os.path.join(NODE_INSTALL_DIR_TEMPO, 'node_modules')
 NODE_MODULES_LINK_PATH = os.path.join(FRONTEND_DIR, 'node_modules')
+ERROR_LOG_DIR_TEMPO = os.path.join('D:\\', 'installer_files', 'node_modules', 'openexpress', 'logs')
 
+VITE_PLUGIN_REACT = '@vitejs/plugin-react'
 
 # --- Helper Functions ---
 
+def log(msg):
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
+
 def get_python_executable():
-    """Returns the path to the python executable, with special handling for user 'Tempo'."""
     try:
         if getpass.getuser().lower() == 'tempo' and platform.system() == 'Windows':
             custom_path = os.path.join('D:\\', 'installer_files', '.venv', 'Scripts', 'python.exe')
             if os.path.exists(custom_path):
-                print(f"Info: Using custom Python executable for user 'Tempo': {custom_path}")
+                log(f"Using custom Python executable for 'Tempo': {custom_path}")
                 return custom_path
-            else:
-                print(f"Warning: Custom Python path for 'Tempo' not found at '{custom_path}'. Falling back to default.")
     except Exception as e:
-        print(f"Warning: Could not get username or check custom path. Reason: {e}. Falling back to default.")
-    
+        log(f"Warning: {e}, falling back to default Python executable.")
     return sys.executable
 
 PYTHON_EXECUTABLE = get_python_executable()
 
 def is_user_tempo():
-    """Checks if the current user is 'Tempo' on Windows."""
     try:
         return getpass.getuser().lower() == 'tempo' and platform.system() == 'Windows'
     except Exception:
         return False
 
-def setup_node_modules_junction():
-    """For user 'Tempo', creates a directory junction for node_modules to a dedicated folder."""
-    if not is_user_tempo():
-        return True # Not applicable, so we consider it a success.
-
-    print("Info: User 'Tempo' detected on Windows. Setting up centralized node_modules.")
-    print(f"  Target: {NODE_MODULES_TARGET_TEMPO}")
-    print(f"  Link:   {NODE_MODULES_LINK_PATH}")
-
-    # Check if the link path already exists
-    if os.path.lexists(NODE_MODULES_LINK_PATH):
-        if os.path.isdir(NODE_MODULES_LINK_PATH) and not os.path.islink(NODE_MODULES_LINK_PATH):
-            print("Info: 'node_modules' directory exists. Assuming it's the correct junction/link.")
-            return True
-        elif os.path.islink(NODE_MODULES_LINK_PATH):
-            print("Info: Symlink/junction already exists. No action needed.")
-            return True
-        else:
-            print("Error: A file named 'node_modules' already exists and is not a directory/junction.")
-            print("Please remove it manually to proceed with centralized installation.")
+def is_admin():
+    if platform.system() == "Windows":
+        try:
+            return ctypes.windll.shell32.IsUserAnAdmin() != 0
+        except Exception:
             return False
-            
-    # Ensure the target directory exists
+    return True
+
+def clear_node_modules_cache():
+    """Removes local node_modules if exists and clears npm cache"""
+    if os.path.isdir(NODE_MODULES_LINK_PATH) or os.path.islink(NODE_MODULES_LINK_PATH):
+        log(f"Removing existing node_modules: {NODE_MODULES_LINK_PATH}")
+        try:
+            if os.path.islink(NODE_MODULES_LINK_PATH):
+                os.unlink(NODE_MODULES_LINK_PATH)
+            else:
+                shutil.rmtree(NODE_MODULES_LINK_PATH)
+        except Exception as e:
+            log(f"Failed to remove node_modules: {e}")
+    
+    log("Cleaning npm cache...")
+    subprocess.run(['npm', 'cache', 'clean', '--force'], cwd=FRONTEND_DIR, shell=True)
+
+def setup_node_modules_junction():
+    if not is_user_tempo():
+        return True
+    if not is_admin():
+        log("⚠️ Junction creation requires admin privileges on Windows.")
+        return False
+
+    log("Setting up centralized node_modules junction")
+
+    # Forcefully remove any existing node_modules (folder or symlink)
+    if os.path.lexists(NODE_MODULES_LINK_PATH):
+        try:
+            if os.path.islink(NODE_MODULES_LINK_PATH):
+                os.unlink(NODE_MODULES_LINK_PATH)
+                log("Existing symlink removed.")
+            elif os.path.isdir(NODE_MODULES_LINK_PATH):
+                shutil.rmtree(NODE_MODULES_LINK_PATH, ignore_errors=True)
+                log("Existing folder removed.")
+            else:
+                os.remove(NODE_MODULES_LINK_PATH)
+                log("Existing file removed.")
+        except Exception as e:
+            log(f"Warning: Could not remove {NODE_MODULES_LINK_PATH}, retrying: {e}")
+            try:
+                if os.path.isdir(NODE_MODULES_LINK_PATH):
+                    shutil.rmtree(NODE_MODULES_LINK_PATH, ignore_errors=True)
+                else:
+                    os.unlink(NODE_MODULES_LINK_PATH)
+            except Exception as e2:
+                log(f"Failed to remove node_modules: {e2}")
+                return False
+
+    # Make sure target directory exists
     try:
         os.makedirs(NODE_MODULES_TARGET_TEMPO, exist_ok=True)
-    except OSError as e:
-        print(f"Error: Could not create target directory '{NODE_MODULES_TARGET_TEMPO}'. Reason: {e}")
+    except Exception as e:
+        log(f"Failed to create target directory: {e}")
         return False
-        
-    # Create the junction using mklink, which is ideal for directories on Windows
+
+    # Create junction
     try:
-        subprocess.check_call(f'mklink /J "{NODE_MODULES_LINK_PATH}" "{NODE_MODULES_TARGET_TEMPO}"', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        print("Successfully created junction for node_modules.")
+        subprocess.check_call(
+            f'mklink /J "{NODE_MODULES_LINK_PATH}" "{NODE_MODULES_TARGET_TEMPO}"',
+            shell=True
+        )
+        log("Successfully created junction for node_modules.")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"Error: Could not create junction for node_modules. 'mklink' command failed. Reason: {e}")
-        print("This is a standard Windows command. Please check your system configuration or permissions.")
-        return False
-    except Exception as e:
-        print(f"Error: An unexpected error occurred while creating the junction: {e}")
+        log(f"Failed to create junction: {e}")
         return False
 
 def print_header(title: str):
-    """Prints a styled header."""
-    print("\n" + "=" * 50)
+    print("\n" + "="*50)
     print(f"🚀 {title}")
-    print("=" * 50)
+    print("="*50)
 
 def prepare_package_json():
-    """Ensures package.json exists, creating it from a default structure if needed."""
     if os.path.exists(PACKAGE_JSON):
         return True
-
-    print(f"Info: '{os.path.basename(PACKAGE_JSON)}' not found. Creating a default package.json...")
-    
-    default_package_content = {
-      "name": "openexpress-app",
-      "version": "1.0.0",
-      "description": "A UI for a design and content creation app.",
-      "main": "index.js",
-      "type": "module",
-      "scripts": {
-        "dev": "vite",
-        "build": "vite build",
-        "vercel-build": "cp api/index_py.txt api/index.py"
-      },
-      "author": "",
-      "license": "ISC",
-       "dependencies": {}
+    log("package.json missing, creating default.")
+    default_content = {
+        "name": "openexpress-app",
+        "version": "1.0.0",
+        "main": "index.js",
+        "type": "module",
+        "scripts": {"dev": "vite", "build": "vite build"},
+        "dependencies": {}
     }
-
     try:
         with open(PACKAGE_JSON, 'w', encoding='utf-8') as f:
-            json.dump(default_package_content, f, indent=2)
-        print(f"Successfully created '{os.path.relpath(PACKAGE_JSON, ROOT_DIR)}'.")
+            json.dump(default_content, f, indent=2)
+        log("package.json created successfully.")
         return True
     except Exception as e:
-        print(f"Error: Could not create package.json. Reason: {e}")
+        log(f"Failed to create package.json: {e}")
         return False
 
-
-def run_command(command, working_dir, name, env=None):
-    """Runs a command in a subprocess and streams its output."""
-    print(f"[{name}] Starting process: {' '.join(command)}")
+def run_command_filtered(command, working_dir, name):
+    log(f"{name}: Running command: {' '.join(command)}")
     try:
         use_shell = platform.system() == 'Windows'
         process = subprocess.Popen(
-            command, cwd=working_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            text=True, encoding='utf-8', errors='replace', env=env, shell=use_shell
+            command, cwd=working_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, shell=use_shell
         )
-        def stream_output(pipe, prefix):
-            if pipe:
-                for line in iter(pipe.readline, ''):
-                    print(f"{prefix} {line}", end='')
-        
-        stdout_thread = threading.Thread(target=stream_output, args=(process.stdout, f"[{name}]"))
-        stderr_thread = threading.Thread(target=stream_output, args=(process.stderr, f"[{name}-ERR]"))
-        stdout_thread.start()
-        stderr_thread.start()
+        for line in iter(process.stdout.readline, ''):
+            if line.strip():
+                print(f"[{name}] {line}", end='')
         process.wait()
-        stdout_thread.join()
-        stderr_thread.join()
-        print(f"[{name}] Process finished with exit code {process.returncode}.")
-    except FileNotFoundError:
-        print(f"[{name}-ERR] Command not found: {command[0]}. Is it installed and in your PATH?")
+        if process.returncode != 0:
+            log(f"{name}: Command failed with exit code {process.returncode}")
     except Exception as e:
-        print(f"[{name}-ERR] An error occurred: {e}")
-
-# --- Task Functions ---
+        log(f"{name}-ERR: {e}")
 
 def install_dependencies():
-    """Installs both Python and Node.js dependencies."""
     print_header("Installing Dependencies")
-    
-    print("\n--- Installing Python dependencies ---")
-    run_command([PYTHON_EXECUTABLE, '-m', 'pip', 'install', '-r', 'requirements.txt'], SERVER_DIR, "pip-server")
-    run_command([PYTHON_EXECUTABLE, '-m', 'pip', 'install', '-r', 'requirements.txt'], ROOT_DIR, "pip-vercel")
-    
-    print("\n--- Installing Node.js dependencies ---")
-    if not prepare_package_json():
-        print("[npm-ERR] Could not prepare package.json for Node.js. Skipping npm install.")
-        return
-    
-    if is_user_tempo():
-        if not setup_node_modules_junction():
-            print("[npm-ERR] Failed to set up centralized node_modules. Aborting npm install.")
-            return
 
-    # Run npm install normally. If junction exists, it will install to the target dir.
-    run_command(['npm', 'install'], FRONTEND_DIR, "npm")
+    # --- Python ---
+    log("Installing Python dependencies")
+    run_command_filtered([PYTHON_EXECUTABLE, '-m', 'pip', 'install', '-r', os.path.join(SERVER_DIR, 'requirements.txt')], SERVER_DIR, "pip-server")
+    run_command_filtered([PYTHON_EXECUTABLE, '-m', 'pip', 'install', '-r', os.path.join(ROOT_DIR, 'requirements.txt')], ROOT_DIR, "pip-vercel")
+
+    # --- Node ---
+    if not prepare_package_json():
+        log("Failed to prepare package.json, skipping npm install")
+        return
+
+    clear_node_modules_cache()
+    if is_user_tempo() and not setup_node_modules_junction():
+        log("Failed to setup centralized node_modules")
+        return
+
+    log("Installing Node.js dependencies")
+    subprocess.run(['npm', 'install'], cwd=FRONTEND_DIR, shell=True)
+
+    # Ensure @vitejs/plugin-react is installed
+    plugin_path = os.path.join(NODE_MODULES_LINK_PATH, VITE_PLUGIN_REACT)
+    if not os.path.exists(plugin_path):
+        log(f"{VITE_PLUGIN_REACT} missing, installing...")
+        subprocess.run(['npm', 'install', VITE_PLUGIN_REACT, '--save-dev'], cwd=FRONTEND_DIR, shell=True)
+
+def run_command(command, working_dir, name, env=None):
+    log(f"{name}: Starting command: {' '.join(command)}")
+    process = subprocess.Popen(
+        command, cwd=working_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, shell=True, env=env
+    )
+    def stream(pipe, prefix):
+        for line in iter(pipe.readline, ''):
+            if line.strip():
+                print(f"[{prefix}] {line}", end='')
+    t1 = threading.Thread(target=stream, args=(process.stdout, name))
+    t2 = threading.Thread(target=stream, args=(process.stderr, f"{name}-ERR"))
+    t1.start(); t2.start()
+    process.wait(); t1.join(); t2.join()
+    log(f"{name}: Process finished with exit code {process.returncode}")
 
 def run_python_server():
-    """Runs the Python/Flask API & Auth server."""
     print_header("Running Python API & Auth Server")
     if not os.path.exists(PYTHON_SERVER_SCRIPT_TXT):
-        print(f"[Python API-ERR] Source file not found: {os.path.relpath(PYTHON_SERVER_SCRIPT_TXT, ROOT_DIR)}")
+        log("Python server script missing")
         return
-    
     run_command([PYTHON_EXECUTABLE, PYTHON_SERVER_SCRIPT_TXT], SERVER_DIR, "Python API")
 
 def run_frontend_dev_server():
-    """Runs the frontend development server (Vite)."""
     print_header("Running Frontend Dev Server")
     if not os.path.isdir(NODE_MODULES_LINK_PATH):
-        print("[Frontend-ERR] 'node_modules' directory not found. Cannot start. Try running 'Install Dependencies' first.")
+        log("node_modules missing, run install_dependencies first")
         return
-    
-    run_command(['npm', 'run', 'dev'], FRONTEND_DIR, "Frontend")
 
+    vite_bin = os.path.join(NODE_MODULES_LINK_PATH, ".bin", "vite.cmd" if platform.system()=="Windows" else "vite")
+    if not os.path.exists(vite_bin):
+        log("vite missing, installing...")
+        subprocess.run(['npm', 'install', 'vite', '--save-dev'], cwd=FRONTEND_DIR, shell=True)
+
+    run_command(['npm', 'run', 'dev'], FRONTEND_DIR, "Frontend", env=os.environ.copy())
 
 def run_all_services():
-    """Runs all services concurrently in separate threads."""
     print_header("Starting All Services")
-
-    if not os.path.isdir(NODE_MODULES_LINK_PATH):
-        print(f"\nInfo: 'node_modules' directory not found. Running dependency installation first.")
-        install_dependencies()
-        if not os.path.isdir(NODE_MODULES_LINK_PATH):
-            print("\nError: Dependency installation failed. Cannot start services.")
-            return
-
-    if not os.path.exists(PYTHON_SERVER_SCRIPT_TXT):
-         print("\nRequired Python server script is missing.")
-         return
-
-    threads = [
-        threading.Thread(target=run_python_server),
-        threading.Thread(target=run_frontend_dev_server)
-    ]
-    
-    for t in threads:
-        t.start()
-    
-    try:
-        for t in threads:
-            t.join()
-    except KeyboardInterrupt:
-        print("\nCaught KeyboardInterrupt, stopping services...")
+    install_dependencies()
+    threads = [threading.Thread(target=run_python_server),
+               threading.Thread(target=run_frontend_dev_server)]
+    for t in threads: t.start()
+    for t in threads: t.join()
 
 def check_environment():
-    """Checks for necessary files and configurations."""
     print_header("Checking Environment")
-    
-    pkg_json_ok = prepare_package_json()
-
     checks = {
-        "Python Server Source (server_py.txt)": os.path.exists(PYTHON_SERVER_SCRIPT_TXT),
-        "package.json in root": pkg_json_ok,
-        "Python requirements.txt (server)": os.path.exists(os.path.join(SERVER_DIR, 'requirements.txt')),
-        "Python requirements.txt (vercel)": os.path.exists(os.path.join(ROOT_DIR, 'requirements.txt')),
-        "Secrets .env file": os.path.exists(os.path.join(ROOT_DIR, 'secrets', '.env')),
+        "Python server script": os.path.exists(PYTHON_SERVER_SCRIPT_TXT),
+        "package.json": os.path.exists(PACKAGE_JSON),
+        "Server requirements.txt": os.path.exists(os.path.join(SERVER_DIR,'requirements.txt')),
+        "Root requirements.txt": os.path.exists(os.path.join(ROOT_DIR,'requirements.txt')),
+        ".env file": os.path.exists(os.path.join(ROOT_DIR,'secrets','.env'))
     }
-    
-    print("\n--- Status Report ---")
-    all_ok = all(checks.values())
-    for check, result in checks.items():
-        print(f"- {check}: {'✅ OK' if result else '❌ FAILED / MISSING'}")
-    
-    if not checks["Secrets .env file"]:
-        print("\nWarning: No 'secrets/.env' file found. Servers might not work correctly without API keys.")
-    
-    if all_ok:
-        print("\nEnvironment check successful!")
+    for k,v in checks.items():
+        print(f"- {k}: {'✅' if v else '❌'}")
+    if all(checks.values()):
+        log("Environment OK")
     else:
-        print("\nSome environment checks failed. Please review the messages above.")
+        log("Some files missing")
+
+def log_errors_only():
+    print_header("Aggregating Error Logs")
+    
+    # Determine source log file path by replicating server's logic
+    log_dir_user = r'F:\Codebase\EnvSetup\cred\.env\OpenExpress\logs'
+    log_dir_project = os.path.join(ROOT_DIR, 'logs')
+    source_log_dir = log_dir_project
+
+    if platform.system() == 'Windows' and os.path.exists(os.path.dirname(log_dir_user)):
+        source_log_dir = log_dir_user
+
+    source_log_file = os.path.join(source_log_dir, 'server.log')
+
+    if not os.path.exists(source_log_file):
+        log(f"Source log file not found: {source_log_file}")
+        log("Please run the Python server to generate logs first.")
+        return
+
+    # Determine destination error log file path
+    dest_log_dir = log_dir_project  # Default for non-Tempo users
+    if is_user_tempo():
+        dest_log_dir = ERROR_LOG_DIR_TEMPO
+    
+    try:
+        os.makedirs(dest_log_dir, exist_ok=True)
+    except Exception as e:
+        log(f"Error: Could not create destination directory {dest_log_dir}: {e}")
+        return
+        
+    dest_error_file = os.path.join(dest_log_dir, 'errors.log')
+
+    # Read source and filter for error-related lines
+    error_lines = []
+    try:
+        with open(source_log_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                # Keywords to identify error lines
+                if any(keyword in line for keyword in ['ERROR', 'Exception', 'Traceback', 'failed', 'Invalid', 'Expired']):
+                    error_lines.append(line)
+    except Exception as e:
+        log(f"Error: Could not read source log file {source_log_file}: {e}")
+        return
+        
+    # Write to destination file
+    try:
+        with open(dest_error_file, 'w', encoding='utf-8') as f:
+            if error_lines:
+                f.write(f"# Error log generated at {datetime.now().isoformat()}\n")
+                f.write("="*50 + "\n")
+                f.writelines(error_lines)
+                log(f"Successfully aggregated {len(error_lines)} error entries.")
+            else:
+                f.write(f"No new errors found in '{source_log_file}' as of {datetime.now().isoformat()}\n")
+                log("No errors found in the log file.")
+        log(f"Error log file is ready at: {dest_error_file}")
+    except Exception as e:
+        log(f"Error: Could not write to destination error file {dest_error_file}: {e}")
 
 def main():
-    """Main function to display the menu and handle user input."""
     menu = {
         '1': ('Install Dependencies', install_dependencies),
         '2': ('Run Python API & Auth Server', run_python_server),
         '3': ('Run Frontend Dev Server', run_frontend_dev_server),
-        '4': ('Run All Services (Concurrent)', run_all_services),
-        '5': ('Check Environment', check_environment),
-        '6': ('Exit', lambda: sys.exit(0)),
+        '4': ('Run All Services', run_all_services),
+        '5': ('Aggregate Error Logs', log_errors_only),
+        '6': ('Check Environment', check_environment),
+        '7': ('Exit', lambda: sys.exit(0))
     }
     while True:
         print_header("Developer Task Runner")
-        for k, (text, _) in menu.items():
-            print(f"{k}. {text}")
-        choice = input("Select an option: ").strip()
-        action = menu.get(choice)
-        if action:
-            try:
-                action[1]()
-            except KeyboardInterrupt:
-                print("\nOperation interrupted by user.")
+        for k,(txt,_) in menu.items():
+            print(f"{k}. {txt}")
+        choice = input("Select option: ").strip()
+        if choice in menu:
+            menu[choice][1]()
         else:
-            print("Invalid choice. Please try again.")
+            log("Invalid choice")
 
-if __name__ == "__main__":
+if __name__=="__main__":
     try:
         main()
     except (KeyboardInterrupt, SystemExit):
-        print("\nTask runner stopped. Exiting.")
+        log("Exiting...")
         sys.exit(0)
