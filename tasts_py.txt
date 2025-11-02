@@ -16,37 +16,38 @@ FRONTEND_DIR = ROOT_DIR
 
 PYTHON_SERVER_SCRIPT_TXT = os.path.join(SERVER_DIR, 'server_py.txt')
 PACKAGE_JSON = os.path.join(FRONTEND_DIR, 'package.json')
-
-NODE_INSTALL_DIR_TEMPO = os.path.join('D:\\', 'installer_files', 'node_modules', 'openexpress')
-NODE_MODULES_TARGET_TEMPO = os.path.join(NODE_INSTALL_DIR_TEMPO, 'node_modules')
 NODE_MODULES_LINK_PATH = os.path.join(FRONTEND_DIR, 'node_modules')
-ERROR_LOG_DIR_TEMPO = os.path.join('D:\\', 'installer_files', 'node_modules', 'openexpress', 'logs')
-
 VITE_PLUGIN_REACT = '@vitejs/plugin-react'
+
+# --- Configuration for 'Tempo' user on Windows ---
+# These paths will be used automatically if the script detects it's run by 'Tempo' on Windows.
+TEMPO_PYTHON_EXECUTABLE = os.path.join('D:\\', 'installer_files', '.venv', 'Scripts', 'python.exe')
+TEMPO_NODE_MODULES_TARGET = os.path.join('D:\\', 'installer_files', 'node_modules', 'openexpress', 'node_modules')
+TEMPO_ENV_PATH = os.path.join('F:\\', 'Codebase', 'EnvSetup', 'cred', '.env', 'OpenExpress', '.env')
+TEMPO_LOGS_DIR = os.path.join('F:\\', 'Codebase', 'EnvSetup', 'cred', '.env', 'OpenExpress', 'logs')
+
 
 # --- Helper Functions ---
 
 def log(msg):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
 
-def get_python_executable():
-    try:
-        if getpass.getuser().lower() == 'tempo' and platform.system() == 'Windows':
-            custom_path = os.path.join('D:\\', 'installer_files', '.venv', 'Scripts', 'python.exe')
-            if os.path.exists(custom_path):
-                log(f"Using custom Python executable for 'Tempo': {custom_path}")
-                return custom_path
-    except Exception as e:
-        log(f"Warning: {e}, falling back to default Python executable.")
-    return sys.executable
-
-PYTHON_EXECUTABLE = get_python_executable()
-
 def is_user_tempo():
     try:
         return getpass.getuser().lower() == 'tempo' and platform.system() == 'Windows'
     except Exception:
         return False
+
+def get_python_executable():
+    if is_user_tempo():
+        if os.path.exists(TEMPO_PYTHON_EXECUTABLE):
+            log(f"Using custom Python executable for 'Tempo': {TEMPO_PYTHON_EXECUTABLE}")
+            return TEMPO_PYTHON_EXECUTABLE
+        else:
+            log(f"Warning: Custom Python for 'Tempo' not found at {TEMPO_PYTHON_EXECUTABLE}. Falling back to default.")
+    return sys.executable
+
+PYTHON_EXECUTABLE = get_python_executable()
 
 def is_admin():
     if platform.system() == "Windows":
@@ -87,13 +88,13 @@ def setup_node_modules_junction():
 
     # Make sure the centralized target directory exists
     try:
-        os.makedirs(NODE_MODULES_TARGET_TEMPO, exist_ok=True)
+        os.makedirs(TEMPO_NODE_MODULES_TARGET, exist_ok=True)
     except Exception as e:
-        log(f"Failed to create target directory '{NODE_MODULES_TARGET_TEMPO}': {e}")
+        log(f"Failed to create target directory '{TEMPO_NODE_MODULES_TARGET}': {e}")
         return False
 
     # Create the junction link
-    command = f'mklink /J "{NODE_MODULES_LINK_PATH}" "{NODE_MODULES_TARGET_TEMPO}"'
+    command = f'mklink /J "{NODE_MODULES_LINK_PATH}" "{TEMPO_NODE_MODULES_TARGET}"'
     log(f"Executing: {command}")
     try:
         subprocess.check_call(
@@ -183,7 +184,7 @@ def install_frontend_dependencies():
     run_command_filtered(['npm', 'install'], FRONTEND_DIR, "npm")
 
     # Ensure @vitejs/plugin-react is installed
-    check_path = NODE_MODULES_TARGET_TEMPO if is_user_tempo() else NODE_MODULES_LINK_PATH
+    check_path = TEMPO_NODE_MODULES_TARGET if is_user_tempo() else NODE_MODULES_LINK_PATH
     plugin_path = os.path.join(check_path, VITE_PLUGIN_REACT)
 
     if not os.path.exists(plugin_path):
@@ -222,7 +223,6 @@ def run_python_server():
 def run_frontend_dev_server():
     print_header("Running Frontend Dev Server")
     
-    node_modules_path_to_check = NODE_MODULES_LINK_PATH
     if is_user_tempo() and not os.path.exists(NODE_MODULES_LINK_PATH):
         log("Junction link for node_modules not found. Run 'Install Frontend Dependencies' first.")
         return
@@ -250,30 +250,45 @@ def run_all_services():
 
 def check_environment():
     print_header("Checking Environment")
+    
+    dotenv_path_project = os.path.join(ROOT_DIR, 'secrets', '.env')
+    
+    found_env_path = None
+    if is_user_tempo() and os.path.exists(TEMPO_ENV_PATH):
+        found_env_path = TEMPO_ENV_PATH
+    elif os.path.exists(dotenv_path_project):
+        found_env_path = dotenv_path_project
+
     checks = {
         "Python server script": os.path.exists(PYTHON_SERVER_SCRIPT_TXT),
         "package.json": os.path.exists(PACKAGE_JSON),
         "Server requirements.txt": os.path.exists(os.path.join(SERVER_DIR,'requirements.txt')),
         "Root requirements.txt": os.path.exists(os.path.join(ROOT_DIR,'requirements.txt')),
-        ".env file": os.path.exists(os.path.join(ROOT_DIR,'secrets','.env'))
+        ".env file": found_env_path is not None
     }
     for k,v in checks.items():
         print(f"- {k}: {'✅' if v else '❌'}")
+    
+    if found_env_path:
+        log(f"Found .env file at: {found_env_path}")
+        
     if all(checks.values()):
         log("Environment OK")
     else:
         log("Some files are missing. Run dependency installation and check your .env file.")
 
+
 def log_errors_only():
     print_header("Aggregating Error Logs")
     
-    # Determine source log file path by replicating server's logic
-    log_dir_user = r'F:\Codebase\EnvSetup\cred\.env\OpenExpress\logs'
+    # Determine source and destination paths
     log_dir_project = os.path.join(ROOT_DIR, 'logs')
     source_log_dir = log_dir_project
+    dest_log_dir = log_dir_project
 
-    if platform.system() == 'Windows' and os.path.exists(os.path.dirname(log_dir_user)):
-        source_log_dir = log_dir_user
+    if is_user_tempo():
+        source_log_dir = TEMPO_LOGS_DIR
+        dest_log_dir = TEMPO_LOGS_DIR
 
     source_log_file = os.path.join(source_log_dir, 'server.log')
 
@@ -281,11 +296,6 @@ def log_errors_only():
         log(f"Source log file not found: {source_log_file}")
         log("Please run the Python server to generate logs first.")
         return
-
-    # Determine destination error log file path
-    dest_log_dir = log_dir_project  # Default for non-Tempo users
-    if is_user_tempo():
-        dest_log_dir = ERROR_LOG_DIR_TEMPO
     
     try:
         os.makedirs(dest_log_dir, exist_ok=True)

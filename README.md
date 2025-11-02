@@ -39,7 +39,7 @@ The project includes an interactive task runner to simplify setup.
     ```bash
     python tasts_py.txt
     ```
-3.  From the menu, select option **1. Install Dependencies**. This will:
+3.  From the menu, select option **3. Install All Dependencies**. This will:
     - Install Python packages from `server/requirements.txt` and `requirements.txt`.
     - Create a `package.json` file if it doesn't exist.
     - Install Node.js packages using `npm install`.
@@ -51,7 +51,10 @@ The application requires API keys and secrets to function correctly.
 1.  Navigate to the project root and create a `secrets` directory if it doesn't exist.
 2.  Inside `secrets`, create a file named `.env`.
 3.  Copy the contents from `.env.example.txt` into your new `.env` file.
-4.  Fill in the required values, especially `GEMINI_API_KEY`, `JWT_SECRET`, and `SESSION_SECRET`. The Python server uses these for its core functionality.
+4.  Fill in the required values, especially `GEMINI_API_KEY`, `JWT_SECRET`, and `SESSION_SECRET`.
+
+> **Note for Special User 'Tempo' on Windows:**
+> For the user `Tempo`, the application is configured to first look for the `.env` file at a specific external path: `F:\Codebase\EnvSetup\cred\.env\OpenExpress\.env`. If you are running under this configuration, place your `.env` file there instead of in the project's `secrets` directory. The local `secrets/.env` file will be ignored if the external one is found.
 
 ### 4. Running the Application
 
@@ -61,7 +64,7 @@ All services can be run concurrently using the task runner.
     ```bash
     python tasts_py.txt
     ```
-2.  Select option **4. Run All Services (Concurrent)**. This will start:
+2.  Select option **6. Run All Services**. This will start:
     - The **Python API & Auth Server** (defaults to `http://localhost:8080`)
     - The **Frontend Dev Server** (defaults to `http://localhost:5173`)
 
