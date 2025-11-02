@@ -6,27 +6,38 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 import google.generativeai as genai
+import logging
+from logging.handlers import RotatingFileHandler
+import traceback
+import sys
 
 # In Vercel, environment variables are managed in the project settings.
-# This ensures that secrets are loaded securely.
-# Note: The .env file is not uploaded to Vercel.
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
+# --- Logging Setup for Vercel ---
+# Vercel's serverless functions have a temporary writable filesystem at /tmp
+LOG_FILE = '/tmp/server.log'
+handler = RotatingFileHandler(LOG_FILE, maxBytes=100000, backupCount=1)
+handler.setFormatter(logging.Formatter(
+    '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+))
+app.logger.setLevel(logging.INFO)
+app.logger.addHandler(handler)
+app.logger.info("Flask serverless function started.")
+
+
 # Load secrets from environment variables.
 JWT_SECRET = os.environ.get('JWT_SECRET', 'your-super-secret-jwt-key-here')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
-# Configure Gemini API only if the key is available.
-# On Vercel, this check determines if the AI features are active.
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
+    app.logger.info("Gemini API configured successfully.")
 else:
-    # This print will appear in the Vercel function logs if the key is missing.
-    print("WARNING: GEMINI_API_KEY environment variable is not set. AI features will be disabled.")
-
+    app.logger.warning("GEMINI_API_KEY environment variable is not set. AI features will be disabled.")
 
 # --- Authentication Decorator ---
 def token_required(f):
@@ -34,87 +45,97 @@ def token_required(f):
     def decorated(*args, **kwargs):
         token = None
         if 'authorization' in request.headers:
-            # Expecting 'Bearer <token>'
             token = request.headers['authorization'].split(' ')[1]
         
         if not token:
+            app.logger.warning("Auth token is missing!")
             return jsonify({'error': 'Token is missing!'}), 401
         
         try:
-            # Decode the token using the secret key
             data = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
             current_user = data['id']
         except jwt.ExpiredSignatureError:
+            app.logger.warning("Expired token received.")
             return jsonify({'error': 'Token has expired!'}), 401
         except jwt.InvalidTokenError:
+            app.logger.error("Invalid token received.")
             return jsonify({'error': 'Token is invalid!'}), 401
         
-        # Pass the user identifier to the decorated function
         return f(current_user, *args, **kwargs)
     return decorated
 
+# --- Global Error Handler ---
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Log any unhandled exception to Vercel logs."""
+    error_trace = traceback.format_exc()
+    # Log to both the file and stderr for Vercel's real-time logs
+    app.logger.error(f"Unhandled Exception: {e}\n{error_trace}")
+    print(f"Unhandled Exception: {e}\n{error_trace}", file=sys.stderr)
+    return jsonify(error="An internal server error occurred."), 500
 
 # --- API Routes ---
 @app.route('/')
 @app.route('/api/status')
 def index():
-  """Root endpoint to confirm the serverless function is running."""
   return jsonify(message='OpenExpress Python serverless function is running!')
+
+@app.route('/api/logs')
+@token_required
+def get_logs(current_user):
+    """Secure endpoint to view the last 100 lines of the server log."""
+    app.logger.info(f"User '{current_user}' accessed the logs.")
+    try:
+        with open(LOG_FILE, 'r') as f:
+            lines = f.readlines()
+            log_content = "".join(lines[-100:])
+        return jsonify(logs=log_content or "Log file is empty.")
+    except FileNotFoundError:
+        return jsonify(logs="Log file not found.")
+    except Exception as e:
+        app.logger.error(f"Could not read log file: {e}")
+        return jsonify(error="Could not retrieve logs."), 500
 
 @app.route('/api/ai-suggestions', methods=['POST'])
 def get_ai_suggestions():
-    """Endpoint to get design suggestions from the Gemini API."""
-    # Vercel will not run this part of the code if the key is not set,
-    # because the app will fail to initialize the genai module.
-    # However, this check is good for robustness.
     if not GEMINI_API_KEY:
-        return jsonify({
-            'error': 'The AI service is not configured on the server; API key is missing.'
-        }), 503
+        return jsonify({'error': 'The AI service is not configured on the server; API key is missing.'}), 503
 
     data = request.get_json()
     if not data or 'prompt' not in data:
+        app.logger.warning("AI suggestions request missing prompt.")
         return jsonify({'error': 'A "prompt" is required in the request body.'}), 400
     
     user_prompt = data['prompt']
+    app.logger.info(f"Received AI suggestion request with prompt: '{user_prompt[:50]}...'")
 
     try:
-        # Use a recommended model for this kind of task.
         model = genai.GenerativeModel('gemini-2.5-flash')
-        
         full_prompt = f"""
           You are an expert UI/UX and graphic designer.
           A user is asking for design suggestions for the following concept: "{user_prompt}".
-
           Please provide 3 distinct and creative design ideas. For each idea, suggest:
           1.  A concept or theme.
           2.  A color palette (with hex codes).
           3.  Font pairings (one for headings, one for body).
           4.  A brief layout description.
-
           Format your response clearly.
         """
-        
         response = model.generate_content(full_prompt)
-        
-        # Return the generated text directly.
         return jsonify({'suggestions': response.text})
 
     except Exception as e:
-        # Log the error for debugging on Vercel.
-        print(f"Error calling Gemini API: {e}")
+        app.logger.error(f"Error calling Gemini API: {e}")
         return jsonify({'error': f'Failed to get suggestions from the AI model.'}), 500
 
 @app.route('/api/save-design', methods=['POST'])
 @token_required
 def save_design(current_user):
-  """Endpoint to receive and process design data from the frontend."""
-  print(f'Received design data from user {current_user} to save:', request.json)
-
   if not request.json or 'title' not in request.json:
+    app.logger.warning(f"User {current_user} made a save-design request with missing title.")
     return jsonify(error='Design title is required.'), 400
   
-  # Simulate saving to a database.
+  app.logger.info(f'User {current_user} saved design: {request.json.get("title")}')
   return jsonify(
     message='Design saved successfully!', 
     designId=f'dsn_{int(time.time())}',
@@ -124,41 +145,32 @@ def save_design(current_user):
 @app.route('/api/schedule-post', methods=['POST'])
 @token_required
 def schedule_post(current_user):
-    """Endpoint to schedule a content post."""
     data = request.get_json()
-    print(f"Received post schedule request from user {current_user}:", data)
-
     if not all(key in data for key in ['brand', 'platform', 'content']):
+        app.logger.warning(f"User {current_user} made a schedule-post request with missing data.")
         return jsonify(error='Missing required fields for scheduling.'), 400
     
-    print(f"Scheduling post for {data['brand']} on {data['platform']}.")
-
+    app.logger.info(f"User {current_user} scheduled a post for {data['brand']} on {data['platform']}.")
     return jsonify(message=f"Post for {data['brand']} on {data['platform']} has been scheduled!"), 201
-
 
 @app.route('/api/image-upload', methods=['POST'])
 def upload_image():
-  """Endpoint to handle image uploads."""
   if 'image_file' not in request.files:
+    app.logger.warning("Image upload attempt with no file part.")
     return jsonify(error='No image file provided.'), 400
   
   file = request.files['image_file']
-  
   if file.filename == '':
+    app.logger.warning("Image upload attempt with empty filename.")
     return jsonify(error='No selected file.'), 400
 
   if file:
-    # In Vercel, files can be temporarily stored in the /tmp directory.
-    print(f"Received image file: {file.filename}")
-    print(f"Simulating save for {file.filename}...")
-    
+    app.logger.info(f"Received image file for upload: {file.filename}")
     return jsonify(
         message='Image uploaded successfully!',
         imageUrl=f'https://fake-cdn.com/images/{file.filename}'
     ), 200
 
-# Vercel does not use the __main__ block. It imports the 'app' object directly.
-# This block is only for local testing if you were to run this file directly.
 if __name__ == '__main__':
   port = int(os.environ.get('PORT', 8080))
   app.run(host='0.0.0.0', port=port, debug=True)

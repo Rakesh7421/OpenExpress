@@ -177,5 +177,20 @@ app.post('/api/twitter/tweet', verifyToken, twitterApi.postTweet);
 app.post('/api/linkedin/profile/post', verifyToken, linkedinApi.postToProfile);
 app.get('/api/tiktok/user', verifyToken, tiktokApi.getUserInfo);
 
+// --- Global Error Handler ---
+app.use((err, req, res, next) => {
+  console.error('--- Unhandled Node.js Error (Vercel) ---');
+  console.error(`Timestamp: ${new Date().toISOString()}`);
+  console.error(`Route: ${req.method} ${req.originalUrl}`);
+  console.error(err.stack);
+  console.error('--------------------------------');
+  
+  if (res.headersSent) {
+    return next(err);
+  }
+  
+  res.status(500).json({ error: 'An internal server error occurred.' });
+});
+
 // Export the app for Vercel
 export default app;

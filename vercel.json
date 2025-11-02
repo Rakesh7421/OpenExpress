@@ -55,6 +55,10 @@
       "dest": "/api/index.py"
     },
     {
+      "src": "/api/logs",
+      "dest": "/api/index.py"
+    },
+    {
       "src": "/api/status",
       "dest": "/api/index.py"
     },

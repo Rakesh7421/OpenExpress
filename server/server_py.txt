@@ -6,18 +6,33 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 import google.generativeai as genai
+import logging
+from logging.handlers import RotatingFileHandler
+import traceback
+import sys
 
 # Load environment variables from `secrets/.env` if it exists.
 dotenv_path = os.path.join(os.path.dirname(__file__), '..', 'secrets', '.env')
 if os.path.exists(dotenv_path):
     load_dotenv(dotenv_path=dotenv_path)
 
-# A functional Flask server for the OpenExpress app.
 app = Flask(__name__)
-
-# Middleware
-# Enable Cross-Origin Resource Sharing (CORS)
 CORS(app)
+
+# --- Logging Setup ---
+LOG_DIR = os.path.join(os.path.dirname(__file__), '..', 'logs')
+if not os.path.exists(LOG_DIR):
+    os.makedirs(LOG_DIR)
+LOG_FILE = os.path.join(LOG_DIR, 'server.log')
+
+handler = RotatingFileHandler(LOG_FILE, maxBytes=100000, backupCount=3)
+handler.setFormatter(logging.Formatter(
+    '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+))
+app.logger.setLevel(logging.INFO)
+app.logger.addHandler(handler)
+app.logger.info("Flask server process started.")
+
 
 # Load secrets from environment variables.
 JWT_SECRET = os.environ.get('JWT_SECRET', 'your-super-secret-jwt-key-here')
@@ -25,8 +40,9 @@ GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
+    app.logger.info("Gemini API configured successfully.")
 else:
-    print("WARNING: GEMINI_API_KEY is not set. AI features will be disabled.")
+    app.logger.warning("GEMINI_API_KEY is not set. AI features will be disabled.")
 
 
 # --- Authentication Decorator ---
@@ -38,18 +54,30 @@ def token_required(f):
             token = request.headers['authorization'].split(' ')[1]
         
         if not token:
+            app.logger.warning("Auth token is missing!")
             return jsonify({'error': 'Token is missing!'}), 401
         
         try:
             data = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
             current_user = data['id']
         except jwt.ExpiredSignatureError:
+            app.logger.warning("Expired token received.")
             return jsonify({'error': 'Token has expired!'}), 401
         except jwt.InvalidTokenError:
+            app.logger.error("Invalid token received.")
             return jsonify({'error': 'Token is invalid!'}), 401
         
         return f(current_user, *args, **kwargs)
     return decorated
+
+# --- Global Error Handler ---
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Log any unhandled exception."""
+    error_trace = traceback.format_exc()
+    app.logger.error(f"Unhandled Exception: {e}\n{error_trace}")
+    print(f"Unhandled Exception: {e}\n{error_trace}", file=sys.stderr)
+    return jsonify(error="An internal server error occurred."), 500
 
 
 # --- Routes ---
@@ -58,6 +86,22 @@ def token_required(f):
 def index():
   """Root endpoint to check if the server is running."""
   return jsonify(message='OpenExpress Python server is running!')
+
+@app.route('/api/logs')
+@token_required
+def get_logs(current_user):
+    """Secure endpoint to view the last 100 lines of the server log."""
+    app.logger.info(f"User '{current_user}' accessed the logs.")
+    try:
+        with open(LOG_FILE, 'r') as f:
+            lines = f.readlines()
+            log_content = "".join(lines[-100:]) # Return recent logs
+        return jsonify(logs=log_content or "Log file is empty.")
+    except FileNotFoundError:
+        return jsonify(logs="Log file not found.")
+    except Exception as e:
+        app.logger.error(f"Could not read log file: {e}")
+        return jsonify(error="Could not retrieve logs."), 500
 
 @app.route('/api/ai-suggestions', methods=['POST'])
 def get_ai_suggestions():
@@ -69,13 +113,14 @@ def get_ai_suggestions():
 
     data = request.get_json()
     if not data or 'prompt' not in data:
+        app.logger.warning("AI suggestions request missing prompt.")
         return jsonify({'error': 'A "prompt" is required in the request body.'}), 400
     
     user_prompt = data['prompt']
+    app.logger.info(f"Received AI suggestion request with prompt: '{user_prompt[:50]}...'")
 
     try:
         model = genai.GenerativeModel('gemini-2.5-flash')
-        
         full_prompt = f"""
           You are an expert UI/UX and graphic designer.
           A user is asking for design suggestions for the following concept: "{user_prompt}".
@@ -88,24 +133,22 @@ def get_ai_suggestions():
 
           Format your response clearly.
         """
-        
         response = model.generate_content(full_prompt)
-        
         return jsonify({'suggestions': response.text})
 
     except Exception as e:
-        print(f"Error calling Gemini API: {e}")
+        app.logger.error(f"Error calling Gemini API: {e}")
         return jsonify({'error': f'Failed to get suggestions from the AI model.'}), 500
 
 @app.route('/api/save-design', methods=['POST'])
 @token_required
 def save_design(current_user):
   """Endpoint to receive and process design data from the frontend."""
-  print(f'Received design data from user {current_user} to save:', request.json)
-
   if not request.json or 'title' not in request.json:
+    app.logger.warning(f"User {current_user} made a save-design request with missing title.")
     return jsonify(error='Design title is required.'), 400
   
+  app.logger.info(f'User {current_user} saved design: {request.json.get("title")}')
   return jsonify(
     message='Design saved successfully!', 
     designId=f'dsn_{int(time.time())}',
@@ -117,31 +160,27 @@ def save_design(current_user):
 def schedule_post(current_user):
     """Endpoint to schedule a content post."""
     data = request.get_json()
-    print(f"Received post schedule request from user {current_user}:", data)
-
     if not all(key in data for key in ['brand', 'platform', 'content']):
+        app.logger.warning(f"User {current_user} made a schedule-post request with missing data.")
         return jsonify(error='Missing required fields for scheduling.'), 400
     
-    print(f"Scheduling post for {data['brand']} on {data['platform']}.")
-
+    app.logger.info(f"User {current_user} scheduled a post for {data['brand']} on {data['platform']}.")
     return jsonify(message=f"Post for {data['brand']} on {data['platform']} has been scheduled!"), 201
-
 
 @app.route('/api/image-upload', methods=['POST'])
 def upload_image():
   """Endpoint to handle image uploads."""
   if 'image_file' not in request.files:
+    app.logger.warning("Image upload attempt with no file part.")
     return jsonify(error='No image file provided.'), 400
   
   file = request.files['image_file']
-  
   if file.filename == '':
+    app.logger.warning("Image upload attempt with empty filename.")
     return jsonify(error='No selected file.'), 400
 
   if file:
-    print(f"Received image file: {file.filename}")
-    print(f"Simulating save for {file.filename}...")
-    
+    app.logger.info(f"Received image file for upload: {file.filename}")
     return jsonify(
         message='Image uploaded successfully!',
         imageUrl=f'https://fake-cdn.com/images/{file.filename}'

@@ -763,6 +763,44 @@ const ServerContent: React.FC = () => {
     const [jwtSecret, setJwtSecret] = useState<string>('your-super-secret-jwt-key');
     const [isJwtSecretVisible, setIsJwtSecretVisible] = useState<boolean>(false);
     const [testResult, setTestResult] = useState<{ status: 'idle' | 'testing' | 'success' | 'error'; message: string } | null>(null);
+    const [logs, setLogs] = useState<string | null>(null);
+    const [isLoadingLogs, setIsLoadingLogs] = useState<boolean>(false);
+
+    const handleViewLogs = async () => {
+      setIsLoadingLogs(true);
+      setLogs(null);
+      setTestResult(null);
+      
+      const platformIds = ['meta', 'x', 'linkedin', 'tiktok'];
+      const token = platformIds.reduce<string | null>((foundToken, id) => {
+        if (foundToken) return foundToken;
+        return localStorage.getItem(`${id}_jwt`);
+      }, null);
+
+      if (!token) {
+        setLogs("Authentication Error: You must connect at least one platform in the 'Branding' panel to view logs.");
+        setIsLoadingLogs(false);
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/logs', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Server responded with ${response.status}`);
+        }
+        const data = await response.json();
+        setLogs(data.logs || "Log file is empty.");
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Failed to fetch logs.";
+        setLogs(`Fetch Error: ${message}`);
+      } finally {
+        setIsLoadingLogs(false);
+      }
+    };
+
 
     const PrepareFilesStepDetails: React.FC = () => (
         <div>
@@ -919,6 +957,15 @@ const ServerContent: React.FC = () => {
                     <span>{testResult?.status === 'testing' ? 'Testing...' : 'Test Connection'}</span>
                 </button>
 
+                 <button
+                    onClick={handleViewLogs}
+                    disabled={isLoadingLogs}
+                    className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors border border-gray-600 hover:bg-gray-700 text-gray-300 disabled:bg-gray-800/50 disabled:text-gray-500 disabled:cursor-not-allowed disabled:border-gray-700"
+                >
+                    <Icon name="clipboard-list" className="w-5 h-5" />
+                    <span>{isLoadingLogs ? 'Loading Logs...' : 'View Server Logs'}</span>
+                </button>
+
                 {testResult && testResult.status !== 'idle' && (
                     <div className={`mt-3 text-xs text-center p-2 rounded-md font-medium
                         ${testResult.status === 'success' ? 'bg-green-900/50 text-green-300' : ''}
@@ -926,6 +973,18 @@ const ServerContent: React.FC = () => {
                         ${testResult.status === 'testing' ? 'bg-blue-900/50 text-blue-300' : ''}
                     `}>
                         {testResult.message}
+                    </div>
+                )}
+
+                {logs !== null && (
+                    <div className="mt-4 animate-fade-in">
+                        <div className="flex justify-between items-center mb-2">
+                             <h4 className="text-md font-semibold text-gray-200">Server Logs</h4>
+                             <button onClick={() => setLogs(null)} className="text-xs text-gray-400 hover:text-white p-1 rounded-md hover:bg-gray-700">Hide</button>
+                        </div>
+                        <pre className="p-3 bg-gray-900 rounded-md text-xs font-mono overflow-x-auto max-h-80 text-gray-300 border border-gray-700">
+                            {logs}
+                        </pre>
                     </div>
                 )}
             </div>
