@@ -365,6 +365,47 @@ def get_ai_suggestions():
         app.logger.error(f"Error calling Gemini API: {e}")
         return jsonify({'error': f'Failed to get suggestions from the AI model.'}), 500
 
+@app.route('/api/ai-post-ideas', methods=['POST'])
+@token_required
+def get_ai_post_ideas(current_user):
+    if not GEMINI_API_KEY:
+        return jsonify({'error': 'The AI service is not configured on the server.'}), 503
+
+    data = request.get_json()
+    if not data or 'brand' not in data or 'platform' not in data:
+        app.logger.warning("AI post ideas request missing brand or platform.")
+        return jsonify({'error': 'Both "brand" and "platform" are required.'}), 400
+    
+    brand = data['brand']
+    platform = data['platform']
+    app.logger.info(f"User '{current_user}' requested AI post ideas for {brand} on {platform}.")
+
+    try:
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        full_prompt = f"""
+          You are a creative social media marketing expert.
+          A user wants post ideas for the brand "{brand}" on the platform "{platform}".
+          Please provide 3 distinct, concise, and engaging post ideas as a simple list.
+          Each idea should be a single sentence or a short phrase, suitable for a user to click and use as a post template.
+          Do not use any special formatting like numbers, bullets, or markdown.
+          Return ONLY the 3 ideas, separated by a newline character.
+
+          Example for "Nike" on "Instagram":
+          Showcasing the new Air Max in a dynamic city setting.
+          A user-generated content challenge asking followers to share their #NikeAdventures.
+          A quick tutorial on the best stretches to do before a run.
+        """
+        response = model.generate_content(full_prompt)
+        
+        # Split the text response into a list of ideas
+        ideas = [idea.strip() for idea in response.text.split('\\n') if idea.strip()]
+        
+        return jsonify({'ideas': ideas})
+
+    except Exception as e:
+        app.logger.error(f"Error calling Gemini API for post ideas: {e}")
+        return jsonify({'error': f'Failed to get suggestions from the AI model.'}), 500
+
 # --- Stubbed API endpoints (previously in Node.js) ---
 @app.route('/api/meta/page/video', methods=['POST'])
 @token_required

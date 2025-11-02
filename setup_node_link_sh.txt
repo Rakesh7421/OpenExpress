@@ -1,8 +1,37 @@
 #!/bin/bash
-#
-# THIS SCRIPT IS DEPRECATED as of 2025-11-02.
-# The logic has been moved directly into the `tasts_py.txt` runner
-# to ensure reliability. This file is kept for historical reference only.
-#
-echo "This script is deprecated and should not be run directly."
-exit 1
+set -e # Exit immediately if a command exits with a non-zero status.
+
+TARGET_WIN="$1"
+LINK_WIN="$2"
+
+if [ -z "$TARGET_WIN" ] || [ -z "$LINK_WIN" ]; then
+    echo "❌ Error: Missing arguments. Usage: $0 <target_directory> <link_name>"
+    exit 1
+fi
+
+# Convert Windows paths to a format that Git Bash/MINGW64 can understand for commands like `ln -s`.
+TARGET=$(echo "$TARGET_WIN" | sed -e 's|\\|/|g' -e 's|^\([A-Za-z]\):|/\L\1|')
+LINK=$(echo "$LINK_WIN" | sed -e 's|\\|/|g' -e 's|^\([A-Za-z]\):|/\L\1|')
+LINK_PARENT_DIR=$(dirname "$LINK")
+
+echo "-> Symlink Setup:"
+echo "   Target: $TARGET"
+echo "   Link:   $LINK"
+
+# 1. Ensure target and link parent directories exist, mimicking `mkdir -p`.
+echo "-> Ensuring directories exist..."
+mkdir -p "$TARGET" "$LINK_PARENT_DIR"
+echo "   - Directories are ready."
+
+# 2. Remove old link/directory if it exists to ensure a clean slate.
+if [ -e "$LINK" ] || [ -L "$LINK" ]; then
+    echo "-> Removing existing item at link location..."
+    rm -rf "$LINK"
+    echo "   - Removed."
+fi
+
+# 3. Create the symbolic link.
+echo "-> Creating symbolic link..."
+ln -s "$TARGET" "$LINK"
+
+echo "✅ Symlink created successfully."

@@ -674,6 +674,7 @@ const ChecklistContent: React.FC = () => {
         { id: 'vercel-config', label: 'Vercel Configuration (vercel.json)' },
         { id: 'vercel-env', label: 'Environment variables set in Vercel UI' },
         { id: 'vercel-build-script', label: '`vercel-build` script in package.json' },
+        { id: 'vercel-serverless-signature', label: 'Python function uses Vercel handler' },
     ];
 
     const allTestableItems = useMemo(() => 

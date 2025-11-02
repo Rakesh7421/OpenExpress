@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Icon } from './common/Icon';
+import { getPostIdeas } from '../services/geminiService';
 
 // Mock data
 const brands = ['Nike', 'Adidas', 'Puma'];
@@ -31,6 +32,26 @@ const ContentPlanner: React.FC = () => {
   const [isScheduling, setIsScheduling] = useState(false);
   const [scheduleStatus, setScheduleStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   
+  const [ideas, setIdeas] = useState<string[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+
+  const handleGenerateIdeas = async () => {
+    if (!brand || !platform) return;
+    setIsGenerating(true);
+    setGenerationError(null);
+    setIdeas([]);
+    try {
+      const result = await getPostIdeas(brand, platform); 
+      setIdeas(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'An unknown error occurred.';
+      setGenerationError(message);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleSchedule = async () => {
       setIsScheduling(true);
       setScheduleStatus(null);
@@ -98,14 +119,39 @@ const ContentPlanner: React.FC = () => {
                 <StyledSelect label="Platform" id="client-platform" options={platforms} value={platform} onChange={e => setPlatform(e.target.value)} />
             </div>
             {selectionMade && (
-                <div className="mt-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700 flex items-center gap-3 animate-fade-in">
-                <Icon name="check-circle" className="w-5 h-5 text-green-500 flex-shrink-0" />
-                <div>
-                    <h4 className="text-sm font-semibold text-gray-300">Target Selected</h4>
-                    <p className="text-xs text-gray-400">
-                        Planning for: <span className="font-medium text-gray-300">{brand.charAt(0).toUpperCase() + brand.slice(1)} on {platform.charAt(0).toUpperCase() + platform.slice(1)}</span>
-                    </p>
-                </div>
+                <div className="animate-fade-in">
+                    <div className="mt-4 p-3 bg-gray-900/50 rounded-lg border border-gray-700 flex items-center gap-3">
+                        <Icon name="check-circle" className="w-5 h-5 text-green-500 flex-shrink-0" />
+                        <div>
+                            <h4 className="text-sm font-semibold text-gray-300">Target Selected</h4>
+                            <p className="text-xs text-gray-400">
+                                Planning for: <span className="font-medium text-gray-300">{brand.charAt(0).toUpperCase() + brand.slice(1)} on {platform.charAt(0).toUpperCase() + platform.slice(1)}</span>
+                            </p>
+                        </div>
+                    </div>
+                     <div className="mt-4">
+                        <button
+                            onClick={handleGenerateIdeas}
+                            disabled={isGenerating}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors border border-gray-600 hover:bg-gray-700 text-gray-300 disabled:opacity-50"
+                        >
+                            <Icon name="sparkles" className={`w-5 h-5 ${isGenerating ? 'animate-pulse' : ''}`} />
+                            <span>{isGenerating ? 'Generating Ideas...' : 'Generate Ideas with AI'}</span>
+                        </button>
+                    </div>
+                    {generationError && <p className="mt-2 text-sm text-red-400">{generationError}</p>}
+                    {ideas.length > 0 && (
+                    <div className="mt-4 space-y-2 p-3 bg-gray-900/50 rounded-lg border border-gray-700 animate-fade-in">
+                        <h4 className="text-sm font-semibold text-gray-300">Here are some ideas:</h4>
+                        <ul className="list-disc list-inside space-y-2 text-sm text-gray-400">
+                        {ideas.map((idea, index) => (
+                            <li key={index} className="hover:text-white cursor-pointer" onClick={() => setPostContent(prev => prev ? `${prev}\n\n${idea}` : idea)}>
+                            {idea}
+                            </li>
+                        ))}
+                        </ul>
+                    </div>
+                    )}
                 </div>
             )}
         </div>

@@ -58,27 +58,35 @@ def is_admin():
 
 
 def setup_node_modules_link_bash():
-    """Executes a hardcoded, user-provided bash command to create the symbolic link."""
+    """Executes an external bash script to create the symbolic link."""
     if not is_user_tempo():
         return True
 
-    log("Setting up centralized node_modules link using user-provided command...")
+    log("Setting up centralized node_modules link using dedicated bash script...")
 
-    # The exact one-line command provided by the user.
-    user_command = 'mkdir -p /f/installer_files/node_modules/openexpress/node_modules /f/Codebase/OpenExpress && rm -rf /f/Codebase/OpenExpress/node_modules && ln -s /f/installer_files/node_modules/openexpress/node_modules /f/Codebase/OpenExpress/node_modules && echo "✅ Symlink created successfully."'
-    
-    command_list = ['bash', '-c', user_command]
+    script_path = os.path.join(ROOT_DIR, 'setup_node_link_sh.txt')
+    if not os.path.exists(script_path):
+        log(f"❌ Critical Error: The helper script 'setup_node_link_sh.txt' was not found in the project root.")
+        return False
+        
+    # We must use 'bash' as the command, assuming it's in the user's PATH (which it is for Git Bash/MINGW64 users).
+    command = [
+        'bash',
+        script_path,
+        TEMPO_NODE_MODULES_TARGET,
+        NODE_MODULES_LINK_PATH
+    ]
     
     try:
-        log(f"Executing command: {user_command}")
-        # The output of the command will be streamed directly to the console.
+        log(f"Executing command: {' '.join(command)}")
+        # We'll stream the output directly to the console so the user sees the bash script's progress.
         process = subprocess.run(
-            command_list,
-            check=True,
+            command,
+            check=True,  # This will raise CalledProcessError if the script returns a non-zero exit code
             text=True,
             shell=platform.system() == 'Windows' # Shell=True helps find 'bash' in the PATH
         )
-        # The user's command already prints the final success message.
+        log("✅ Bash script executed successfully.")
         return True
     except FileNotFoundError:
         log("❌ Error: 'bash' command not found.")
@@ -86,11 +94,11 @@ def setup_node_modules_link_bash():
         log("   and that 'bash' is in your system's PATH.")
         return False
     except subprocess.CalledProcessError as e:
-        log(f"❌ Error: The bash command failed with exit code {e.returncode}.")
-        log("   Please review the output from the command above for details.")
+        log(f"❌ Error: The bash script failed with exit code {e.returncode}.")
+        log("   Please review the output from the script above for details.")
         return False
     except Exception as e:
-        log(f"❌ An unexpected error occurred while running the bash command: {e}")
+        log(f"❌ An unexpected error occurred while running the bash script: {e}")
         return False
 
 
@@ -160,12 +168,12 @@ def install_backend_dependencies():
     run_pip_install([PYTHON_EXECUTABLE, '-m', 'pip', 'install', '-r', os.path.join(ROOT_DIR, 'requirements.txt')], ROOT_DIR, "pip-vercel")
 
 def install_frontend_dependencies():
-    print_header("Installing Frontend (Node) Dependencies")
+    print_header("Installing Frontend (Node.js) Dependencies")
     if not prepare_package_json():
         log("Failed to prepare package.json, skipping npm install.")
         return
 
-    # Use the new direct bash command function for 'Tempo' user
+    # Use the new bash script function for 'Tempo' user
     if is_user_tempo():
         if not setup_node_modules_link_bash():
             log("❌ Failed to setup centralized node_modules. Aborting frontend dependency installation.")
