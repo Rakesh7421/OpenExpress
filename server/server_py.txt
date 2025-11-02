@@ -2,7 +2,7 @@ import os
 import time
 from functools import wraps
 import jwt
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect, url_for, session
 from flask_cors import CORS
 from dotenv import load_dotenv
 import google.generativeai as genai
@@ -10,13 +10,26 @@ import logging
 from logging.handlers import RotatingFileHandler
 import traceback
 import sys
+import platform
+import json
+from authlib.integrations.flask_client import OAuth
 
-# Load environment variables from `secrets/.env` if it exists.
-dotenv_path = os.path.join(os.path.dirname(__file__), '..', 'secrets', '.env')
-if os.path.exists(dotenv_path):
-    load_dotenv(dotenv_path=dotenv_path)
+# Load environment variables.
+# Prioritize the user-specified path on Windows.
+dotenv_path_user = r'F:\Codebase\EnvSetup\cred\.env\OpenExpress\.env'
+dotenv_path_project = os.path.join(os.path.dirname(__file__), '..', 'secrets', '.env')
+loaded_path = None
+
+if platform.system() == 'Windows' and os.path.exists(dotenv_path_user):
+    load_dotenv(dotenv_path=dotenv_path_user)
+    loaded_path = dotenv_path_user
+elif os.path.exists(dotenv_path_project):
+    load_dotenv(dotenv_path=dotenv_path_project)
+    loaded_path = dotenv_path_project
 
 app = Flask(__name__)
+# Session is required for OAuth state.
+app.secret_key = os.environ.get('SESSION_SECRET', 'a_very_secret_key_for_sessions')
 CORS(app)
 
 # --- Logging Setup ---
@@ -33,6 +46,10 @@ app.logger.setLevel(logging.INFO)
 app.logger.addHandler(handler)
 app.logger.info("Flask server process started.")
 
+if loaded_path:
+    app.logger.info(f"Loaded .env from: {loaded_path}")
+else:
+    app.logger.warning("Warning: No .env file found in standard locations. Using system environment variables.")
 
 # Load secrets from environment variables.
 JWT_SECRET = os.environ.get('JWT_SECRET', 'your-super-secret-jwt-key-here')
@@ -44,6 +61,207 @@ if GEMINI_API_KEY:
 else:
     app.logger.warning("GEMINI_API_KEY is not set. AI features will be disabled.")
 
+# --- User Database (re-implementing database.js) ---
+DB_PATH = os.path.join(os.path.dirname(__file__), 'db.json')
+
+def read_db():
+    try:
+        with open(DB_PATH, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {'users': {}}
+
+def write_db(data):
+    with open(DB_PATH, 'w') as f:
+        json.dump(data, f, indent=2)
+
+def find_or_create_user(profile, provider, tokens):
+    db = read_db()
+    user_key = f"{provider}:{profile['id']}"
+    user = db['users'].get(user_key)
+    
+    if user:
+        user['tokens'] = tokens
+        user['lastLoginAt'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+    else:
+        user = {
+            'id': user_key,
+            'provider': provider,
+            'profileId': profile['id'],
+            'displayName': profile.get('displayName'),
+            'email': profile.get('email'),
+            'photo': profile.get('photo'),
+            'tokens': tokens,
+            'createdAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            'lastLoginAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+        }
+    
+    db['users'][user_key] = user
+    write_db(db)
+    return user
+
+# --- OAuth Setup ---
+oauth = OAuth(app)
+
+# Meta (Facebook)
+if os.environ.get('FACEBOOK_APP_ID'):
+    oauth.register(
+        name='facebook',
+        client_id=os.environ.get('FACEBOOK_APP_ID'),
+        client_secret=os.environ.get('FACEBOOK_APP_SECRET'),
+        access_token_url='https://graph.facebook.com/oauth/access_token',
+        authorize_url='https://www.facebook.com/dialog/oauth',
+        api_base_url='https://graph.facebook.com/',
+        client_kwargs={'scope': 'email public_profile'},
+    )
+
+# X (Twitter) - Uses OAuth 1.0a
+if os.environ.get('TWITTER_CONSUMER_KEY'):
+    oauth.register(
+        name='twitter',
+        client_id=os.environ.get('TWITTER_CONSUMER_KEY'),
+        client_secret=os.environ.get('TWITTER_CONSUMER_SECRET'),
+        request_token_url='https://api.twitter.com/oauth/request_token',
+        access_token_url='https://api.twitter.com/oauth/access_token',
+        authorize_url='https://api.twitter.com/oauth/authenticate',
+        api_base_url='https://api.twitter.com/1.1/',
+        fetch_request_token=True,
+    )
+
+# LinkedIn
+if os.environ.get('LINKEDIN_CLIENT_ID'):
+    oauth.register(
+        name='linkedin',
+        client_id=os.environ.get('LINKEDIN_CLIENT_ID'),
+        client_secret=os.environ.get('LINKEDIN_CLIENT_SECRET'),
+        access_token_url='https://www.linkedin.com/oauth/v2/accessToken',
+        authorize_url='https://www.linkedin.com/oauth/v2/authorization',
+        api_base_url='https://api.linkedin.com/v2/',
+        client_kwargs={'scope': 'r_liteprofile r_emailaddress'},
+    )
+
+# TikTok
+if os.environ.get('TIKTOK_CLIENT_KEY'):
+    oauth.register(
+        name='tiktok',
+        client_id=os.environ.get('TIKTOK_CLIENT_KEY'),
+        client_secret=os.environ.get('TIKTOK_CLIENT_SECRET'),
+        access_token_url='https://open-api.tiktok.com/oauth/access_token/',
+        authorize_url='https://www.tiktok.com/auth/authorize/',
+        api_base_url='https://open-api.tiktok.com/',
+        client_kwargs={'scope': 'user.info.basic'},
+    )
+
+# --- Auth Helper Functions ---
+def generate_auth_success_response(platform, user):
+    user_payload = {
+        'id': user['id'],
+        'displayName': user['displayName'],
+        'provider': user['provider']
+    }
+    token = jwt.encode(user_payload, JWT_SECRET, algorithm='HS256')
+    return f"""
+      <script>
+        window.opener.postMessage({{ type: 'auth-success', platform: '{platform}', token: '{token}' }}, '*');
+        window.close();
+      </script>
+      <h1>Authentication Successful!</h1><p>You can close this window.</p>
+    """
+
+def generate_auth_failure_response(platform, error_message="Authentication Failed"):
+    app.logger.error(f"Auth failure for {platform}: {error_message}")
+    return f"""
+        <script>
+            window.opener.postMessage({{ type: 'auth-failure', platform: '{platform}' }}, '*');
+            window.close();
+        </script>
+        <h1>Authentication Failed</h1><p>Please try again. You can close this window.</p>
+    """, 401
+
+# --- Authentication Routes ---
+@app.route('/auth/<name>')
+def login(name):
+    client = oauth.create_client(name)
+    if not client:
+        return 'Unknown provider', 404
+    redirect_uri = url_for(f'{name}_callback', _external=True)
+    return client.authorize_redirect(redirect_uri)
+
+@app.route('/auth/facebook/callback')
+def facebook_callback():
+    try:
+        token = oauth.facebook.authorize_access_token()
+        resp = oauth.facebook.get('me?fields=id,name,email,picture')
+        resp.raise_for_status()
+        profile = resp.json()
+        profile_mapped = {
+            'id': profile['id'],
+            'displayName': profile.get('name'),
+            'email': profile.get('email'),
+            'photo': profile.get('picture', {}).get('data', {}).get('url')
+        }
+        user = find_or_create_user(profile_mapped, 'facebook', token)
+        return generate_auth_success_response('meta', user)
+    except Exception as e:
+        return generate_auth_failure_response('meta', str(e))
+
+@app.route('/auth/twitter/callback')
+def twitter_callback():
+    try:
+        token = oauth.twitter.authorize_access_token()
+        resp = oauth.twitter.get('account/verify_credentials.json?include_email=true')
+        resp.raise_for_status()
+        profile = resp.json()
+        profile_mapped = {
+            'id': profile['id_str'],
+            'displayName': profile.get('name'),
+            'email': profile.get('email'),
+            'photo': profile.get('profile_image_url_https')
+        }
+        user = find_or_create_user(profile_mapped, 'twitter', token)
+        return generate_auth_success_response('x', user)
+    except Exception as e:
+        return generate_auth_failure_response('x', str(e))
+
+@app.route('/auth/linkedin/callback')
+def linkedin_callback():
+    try:
+        token = oauth.linkedin.authorize_access_token()
+        resp_profile = oauth.linkedin.get('me')
+        resp_profile.raise_for_status()
+        profile = resp_profile.json()
+        
+        resp_email = oauth.linkedin.get('emailAddress?q=members&projection=(elements*(handle~))')
+        resp_email.raise_for_status()
+        email_data = resp_email.json()
+        email = email_data.get('elements', [{}])[0].get('handle~', {}).get('emailAddress')
+
+        profile_mapped = {
+            'id': profile['id'],
+            'displayName': f"{profile.get('localizedFirstName')} {profile.get('localizedLastName')}",
+            'email': email
+        }
+        user = find_or_create_user(profile_mapped, 'linkedin', token)
+        return generate_auth_success_response('linkedin', user)
+    except Exception as e:
+        return generate_auth_failure_response('linkedin', str(e))
+
+@app.route('/auth/tiktok/callback')
+def tiktok_callback():
+    try:
+        token = oauth.tiktok.authorize_access_token()
+        resp = oauth.tiktok.get('v2/user/info/?fields=open_id,display_name,avatar_url')
+        resp.raise_for_status()
+        profile_data = resp.json().get('data', {}).get('user', {})
+        profile_mapped = {
+            'id': profile_data['open_id'],
+            'displayName': profile_data.get('display_name'),
+            'photo': profile_data.get('avatar_url')
+        }
+        user = find_or_create_user(profile_mapped, 'tiktok', token)
+        return generate_auth_success_response('tiktok', user)
+    except Exception as e:
+        return generate_auth_failure_response('tiktok', str(e))
 
 # --- Authentication Decorator ---
 def token_required(f):
@@ -73,29 +291,26 @@ def token_required(f):
 # --- Global Error Handler ---
 @app.errorhandler(Exception)
 def handle_exception(e):
-    """Log any unhandled exception."""
     error_trace = traceback.format_exc()
     app.logger.error(f"Unhandled Exception: {e}\n{error_trace}")
     print(f"Unhandled Exception: {e}\n{error_trace}", file=sys.stderr)
     return jsonify(error="An internal server error occurred."), 500
 
 
-# --- Routes ---
+# --- API Routes ---
 @app.route('/')
 @app.route('/api/status')
 def index():
-  """Root endpoint to check if the server is running."""
   return jsonify(message='OpenExpress Python server is running!')
 
 @app.route('/api/logs')
 @token_required
 def get_logs(current_user):
-    """Secure endpoint to view the last 100 lines of the server log."""
     app.logger.info(f"User '{current_user}' accessed the logs.")
     try:
         with open(LOG_FILE, 'r') as f:
             lines = f.readlines()
-            log_content = "".join(lines[-100:]) # Return recent logs
+            log_content = "".join(lines[-100:])
         return jsonify(logs=log_content or "Log file is empty.")
     except FileNotFoundError:
         return jsonify(logs="Log file not found.")
@@ -105,11 +320,8 @@ def get_logs(current_user):
 
 @app.route('/api/ai-suggestions', methods=['POST'])
 def get_ai_suggestions():
-    """Endpoint to get design suggestions from the Gemini API."""
     if not GEMINI_API_KEY:
-        return jsonify({
-            'error': 'The AI service is not configured on the server; API key is missing.'
-        }), 503
+        return jsonify({'error': 'The AI service is not configured on the server; API key is missing.'}), 503
 
     data = request.get_json()
     if not data or 'prompt' not in data:
@@ -124,13 +336,11 @@ def get_ai_suggestions():
         full_prompt = f"""
           You are an expert UI/UX and graphic designer.
           A user is asking for design suggestions for the following concept: "{user_prompt}".
-
           Please provide 3 distinct and creative design ideas. For each idea, suggest:
           1.  A concept or theme.
           2.  A color palette (with hex codes).
           3.  Font pairings (one for headings, one for body).
           4.  A brief layout description.
-
           Format your response clearly.
         """
         response = model.generate_content(full_prompt)
@@ -140,10 +350,36 @@ def get_ai_suggestions():
         app.logger.error(f"Error calling Gemini API: {e}")
         return jsonify({'error': f'Failed to get suggestions from the AI model.'}), 500
 
+# --- Stubbed API endpoints (previously in Node.js) ---
+@app.route('/api/meta/page/video', methods=['POST'])
+@token_required
+def post_video_to_page(current_user):
+    return jsonify(message=f"Request to post video to Page received for user {current_user}.", note="This is a simulated success response."), 200
+
+@app.route('/api/meta/group/video', methods=['POST'])
+@token_required
+def post_video_to_group(current_user):
+    return jsonify(message=f"Request to post video to Group received for user {current_user}.", note="This is a simulated success response."), 200
+
+@app.route('/api/twitter/tweet', methods=['POST'])
+@token_required
+def post_tweet(current_user):
+    return jsonify(message=f"Tweet received from {current_user}.", note="This is a simulated success response."), 200
+    
+@app.route('/api/linkedin/profile/post', methods=['POST'])
+@token_required
+def post_to_linkedin_profile(current_user):
+    return jsonify(message=f"LinkedIn post received from {current_user}.", note="This is a simulated success response."), 200
+
+@app.route('/api/tiktok/user', methods=['GET'])
+@token_required
+def get_tiktok_user_info(current_user):
+    return jsonify(message=f"Successfully fetched user info for {current_user}.", data={'note': "This is simulated user data."}), 200
+
+# --- Existing App Routes ---
 @app.route('/api/save-design', methods=['POST'])
 @token_required
 def save_design(current_user):
-  """Endpoint to receive and process design data from the frontend."""
   if not request.json or 'title' not in request.json:
     app.logger.warning(f"User {current_user} made a save-design request with missing title.")
     return jsonify(error='Design title is required.'), 400
@@ -158,7 +394,6 @@ def save_design(current_user):
 @app.route('/api/schedule-post', methods=['POST'])
 @token_required
 def schedule_post(current_user):
-    """Endpoint to schedule a content post."""
     data = request.get_json()
     if not all(key in data for key in ['brand', 'platform', 'content']):
         app.logger.warning(f"User {current_user} made a schedule-post request with missing data.")
@@ -169,7 +404,6 @@ def schedule_post(current_user):
 
 @app.route('/api/image-upload', methods=['POST'])
 def upload_image():
-  """Endpoint to handle image uploads."""
   if 'image_file' not in request.files:
     app.logger.warning("Image upload attempt with no file part.")
     return jsonify(error='No image file provided.'), 400

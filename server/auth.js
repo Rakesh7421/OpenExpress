@@ -31,6 +31,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import * as dotenv from 'dotenv';
 import { findOrCreateUser } from './database.js';
+import fs from 'fs';
+import os from 'os';
 
 // API and Middleware imports
 import { verifyToken } from './middleware/auth.js';
@@ -48,7 +50,28 @@ import { Strategy as TikTokStrategy } from 'passport-tiktok-auth';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.resolve(__dirname, '..', 'secrets', '.env') });
+
+// Load environment variables. Prioritize user-specific path on Windows.
+const userEnvPath = 'F:\\Codebase\\EnvSetup\\cred\\.env\\OpenExpress\\.env';
+const projectEnvPath = path.resolve(__dirname, '..', 'secrets', '.env');
+
+let envPathToUse;
+let loadedPathMessage;
+if (os.platform() === 'win32' && fs.existsSync(userEnvPath)) {
+    envPathToUse = userEnvPath;
+    loadedPathMessage = `Loaded .env from user-specified path: ${userEnvPath}`;
+} else if (fs.existsSync(projectEnvPath)) {
+    envPathToUse = projectEnvPath;
+    loadedPathMessage = `Loaded .env from project secrets: ${projectEnvPath}`;
+} else {
+    loadedPathMessage = "Warning: No .env file found in standard locations. Using system environment variables.";
+}
+
+if (envPathToUse) {
+    dotenv.config({ path: envPathToUse });
+} else {
+    dotenv.config(); // Load from system env
+}
 
 
 const app = express();
@@ -229,6 +252,7 @@ app.use((err, req, res, next) => {
 // --- Start Server ---
 app.listen(PORT, () => {
   console.log(`Node.js auth server listening on http://localhost:${PORT}`);
+  console.log(loadedPathMessage);
   if (!process.env.SESSION_SECRET) {
       console.warn("WARNING: SESSION_SECRET is not set. Please set it in your .env file for security.");
   }

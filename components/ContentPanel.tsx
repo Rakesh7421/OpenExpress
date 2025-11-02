@@ -670,6 +670,12 @@ const ChecklistContent: React.FC = () => {
         { id: 'termux-api', label: 'Direct Termux API Access', testFn: testTermuxApiAccess },
     ];
     
+    const vercelItems = [
+        { id: 'vercel-config', label: 'Vercel Configuration (vercel.json)' },
+        { id: 'vercel-env', label: 'Environment variables set in Vercel UI' },
+        { id: 'vercel-build-script', label: '`vercel-build` script in package.json' },
+    ];
+
     const allTestableItems = useMemo(() => 
         [...backendItems, ...termuxItems].reduce((acc, item) => {
             acc[item.id] = item.label;
@@ -750,6 +756,13 @@ const ChecklistContent: React.FC = () => {
                         </div>
                     )
                 ))}
+            </div>
+            <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                <h3 className="text-md font-semibold text-gray-200 mb-1">Vercel Deployment</h3>
+                <p className="text-xs text-gray-500 mb-3">Manual checks for Vercel compatibility.</p>
+                <div className="space-y-2">
+                    {vercelItems.map(item => renderChecklistItem(item))}
+                </div>
             </div>
         </div>
     );
@@ -863,7 +876,11 @@ const ServerContent: React.FC = () => {
         } catch (error) {
             console.error('Connection attempt failed:', error);
             setStatus('disconnected');
-            const message = error instanceof Error ? error.message : 'Connection failed. Is the server running?';
+            let message = error instanceof Error ? error.message : 'Connection failed. Is the server running?';
+            // @ts-ignore
+            if (window.aistudio && message.toLowerCase().includes('status: 404')) {
+                message = 'Connection failed. Note: Local server is not accessible from AI Studio.';
+            }
             setTestResult({ status: 'error', message });
         } finally {
             setTimeout(() => setTestResult(null), 5000);
@@ -881,7 +898,11 @@ const ServerContent: React.FC = () => {
             setTestResult({ status: 'success', message: data.message || 'Successfully connected!' });
         } catch (error) {
             console.error('Connection test failed:', error);
-            const message = error instanceof Error ? error.message : 'Connection failed. Is the server running?';
+            let message = error instanceof Error ? error.message : 'Connection failed. Is the server running?';
+            // @ts-ignore
+            if (window.aistudio && message.toLowerCase().includes('status: 404')) {
+                message = 'Connection failed. Note: Local server is not accessible from AI Studio.';
+            }
             setTestResult({ status: 'error', message });
         } finally {
             setTimeout(() => setTestResult(null), 5000); // Clear message after 5 seconds

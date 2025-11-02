@@ -2,7 +2,7 @@ import os
 import time
 from functools import wraps
 import jwt
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect, url_for, session
 from flask_cors import CORS
 from dotenv import load_dotenv
 import google.generativeai as genai
@@ -10,16 +10,21 @@ import logging
 from logging.handlers import RotatingFileHandler
 import traceback
 import sys
+import json
+from authlib.integrations.flask_client import OAuth
 
 # In Vercel, environment variables are managed in the project settings.
+# The load_dotenv() call is for consistency but may not load from a file in production.
 load_dotenv()
 
 app = Flask(__name__)
+# Session is required for OAuth state and must have a secret key.
+app.secret_key = os.environ.get('SESSION_SECRET', 'a_very_secret_key_for_sessions')
 CORS(app)
 
 # --- Logging Setup for Vercel ---
 # Vercel's serverless functions have a temporary writable filesystem at /tmp
-LOG_FILE = '/tmp/server.log'
+LOG_FILE = '/tmp/server.log' 
 handler = RotatingFileHandler(LOG_FILE, maxBytes=100000, backupCount=1)
 handler.setFormatter(logging.Formatter(
     '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
@@ -38,6 +43,212 @@ if GEMINI_API_KEY:
     app.logger.info("Gemini API configured successfully.")
 else:
     app.logger.warning("GEMINI_API_KEY environment variable is not set. AI features will be disabled.")
+
+# --- User Database for Serverless Env ---
+DB_PATH = '/tmp/db.json'
+
+def read_db():
+    try:
+        with open(DB_PATH, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {'users': {}}
+
+def write_db(data):
+    with open(DB_PATH, 'w') as f:
+        json.dump(data, f, indent=2)
+
+def find_or_create_user(profile, provider, tokens):
+    db = read_db()
+    user_key = f"{provider}:{profile['id']}"
+    user = db['users'].get(user_key)
+    
+    if user:
+        user['tokens'] = tokens
+        user['lastLoginAt'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+    else:
+        user = {
+            'id': user_key,
+            'provider': provider,
+            'profileId': profile['id'],
+            'displayName': profile.get('displayName'),
+            'email': profile.get('email'),
+            'photo': profile.get('photo'),
+            'tokens': tokens,
+            'createdAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            'lastLoginAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+        }
+    
+    db['users'][user_key] = user
+    write_db(db)
+    return user
+
+# --- OAuth Setup ---
+oauth = OAuth(app)
+callback_url_base = os.environ.get('VERCEL_URL', 'http://localhost:3000')
+if callback_url_base and not callback_url_base.startswith('http'):
+    callback_url_base = f'https://{callback_url_base}'
+
+# Meta (Facebook)
+if os.environ.get('FACEBOOK_APP_ID'):
+    oauth.register(
+        name='facebook',
+        client_id=os.environ.get('FACEBOOK_APP_ID'),
+        client_secret=os.environ.get('FACEBOOK_APP_SECRET'),
+        access_token_url='https://graph.facebook.com/oauth/access_token',
+        authorize_url='https://www.facebook.com/dialog/oauth',
+        api_base_url='https://graph.facebook.com/',
+        client_kwargs={'scope': 'email public_profile'},
+    )
+
+# X (Twitter)
+if os.environ.get('TWITTER_CONSUMER_KEY'):
+    oauth.register(
+        name='twitter',
+        client_id=os.environ.get('TWITTER_CONSUMER_KEY'),
+        client_secret=os.environ.get('TWITTER_CONSUMER_SECRET'),
+        request_token_url='https://api.twitter.com/oauth/request_token',
+        access_token_url='https://api.twitter.com/oauth/access_token',
+        authorize_url='https://api.twitter.com/oauth/authenticate',
+        api_base_url='https://api.twitter.com/1.1/',
+        fetch_request_token=True,
+    )
+
+# LinkedIn
+if os.environ.get('LINKEDIN_CLIENT_ID'):
+    oauth.register(
+        name='linkedin',
+        client_id=os.environ.get('LINKEDIN_CLIENT_ID'),
+        client_secret=os.environ.get('LINKEDIN_CLIENT_SECRET'),
+        access_token_url='https://www.linkedin.com/oauth/v2/accessToken',
+        authorize_url='https://www.linkedin.com/oauth/v2/authorization',
+        api_base_url='https://api.linkedin.com/v2/',
+        client_kwargs={'scope': 'r_liteprofile r_emailaddress'},
+    )
+
+# TikTok
+if os.environ.get('TIKTOK_CLIENT_KEY'):
+    oauth.register(
+        name='tiktok',
+        client_id=os.environ.get('TIKTOK_CLIENT_KEY'),
+        client_secret=os.environ.get('TIKTOK_CLIENT_SECRET'),
+        access_token_url='https://open-api.tiktok.com/oauth/access_token/',
+        authorize_url='https://www.tiktok.com/auth/authorize/',
+        api_base_url='https://open-api.tiktok.com/',
+        client_kwargs={'scope': 'user.info.basic'},
+    )
+
+
+# --- Auth Helper Functions ---
+def generate_auth_success_response(platform, user):
+    user_payload = {
+        'id': user['id'],
+        'displayName': user['displayName'],
+        'provider': user['provider']
+    }
+    token = jwt.encode(user_payload, JWT_SECRET, algorithm='HS256')
+    return f"""
+      <script>
+        window.opener.postMessage({{ type: 'auth-success', platform: '{platform}', token: '{token}' }}, '*');
+        window.close();
+      </script>
+      <h1>Authentication Successful!</h1><p>You can close this window.</p>
+    """
+
+def generate_auth_failure_response(platform, error_message="Authentication Failed"):
+    app.logger.error(f"Auth failure for {platform}: {error_message}")
+    return f"""
+        <script>
+            window.opener.postMessage({{ type: 'auth-failure', platform: '{platform}' }}, '*');
+            window.close();
+        </script>
+        <h1>Authentication Failed</h1><p>Please try again. You can close this window.</p>
+    """, 401
+
+# --- Authentication Routes ---
+@app.route('/auth/<name>')
+def login(name):
+    client = oauth.create_client(name)
+    if not client:
+        return 'Unknown provider', 404
+    redirect_uri = f"{callback_url_base}/auth/{name}/callback"
+    return client.authorize_redirect(redirect_uri)
+
+@app.route('/auth/facebook/callback')
+def facebook_callback():
+    try:
+        token = oauth.facebook.authorize_access_token()
+        resp = oauth.facebook.get('me?fields=id,name,email,picture')
+        resp.raise_for_status()
+        profile = resp.json()
+        profile_mapped = {
+            'id': profile['id'],
+            'displayName': profile.get('name'),
+            'email': profile.get('email'),
+            'photo': profile.get('picture', {}).get('data', {}).get('url')
+        }
+        user = find_or_create_user(profile_mapped, 'facebook', token)
+        return generate_auth_success_response('meta', user)
+    except Exception as e:
+        return generate_auth_failure_response('meta', str(e))
+
+@app.route('/auth/twitter/callback')
+def twitter_callback():
+    try:
+        token = oauth.twitter.authorize_access_token()
+        resp = oauth.twitter.get('account/verify_credentials.json?include_email=true')
+        resp.raise_for_status()
+        profile = resp.json()
+        profile_mapped = {
+            'id': profile['id_str'],
+            'displayName': profile.get('name'),
+            'email': profile.get('email'),
+            'photo': profile.get('profile_image_url_https')
+        }
+        user = find_or_create_user(profile_mapped, 'twitter', token)
+        return generate_auth_success_response('x', user)
+    except Exception as e:
+        return generate_auth_failure_response('x', str(e))
+
+@app.route('/auth/linkedin/callback')
+def linkedin_callback():
+    try:
+        token = oauth.linkedin.authorize_access_token()
+        resp_profile = oauth.linkedin.get('me')
+        resp_profile.raise_for_status()
+        profile = resp_profile.json()
+        
+        resp_email = oauth.linkedin.get('emailAddress?q=members&projection=(elements*(handle~))')
+        resp_email.raise_for_status()
+        email_data = resp_email.json()
+        email = email_data.get('elements', [{}])[0].get('handle~', {}).get('emailAddress')
+
+        profile_mapped = {
+            'id': profile['id'],
+            'displayName': f"{profile.get('localizedFirstName')} {profile.get('localizedLastName')}",
+            'email': email
+        }
+        user = find_or_create_user(profile_mapped, 'linkedin', token)
+        return generate_auth_success_response('linkedin', user)
+    except Exception as e:
+        return generate_auth_failure_response('linkedin', str(e))
+
+@app.route('/auth/tiktok/callback')
+def tiktok_callback():
+    try:
+        token = oauth.tiktok.authorize_access_token()
+        resp = oauth.tiktok.get('v2/user/info/?fields=open_id,display_name,avatar_url')
+        resp.raise_for_status()
+        profile_data = resp.json().get('data', {}).get('user', {})
+        profile_mapped = {
+            'id': profile_data['open_id'],
+            'displayName': profile_data.get('display_name'),
+            'photo': profile_data.get('avatar_url')
+        }
+        user = find_or_create_user(profile_mapped, 'tiktok', token)
+        return generate_auth_success_response('tiktok', user)
+    except Exception as e:
+        return generate_auth_failure_response('tiktok', str(e))
 
 # --- Authentication Decorator ---
 def token_required(f):
@@ -67,9 +278,7 @@ def token_required(f):
 # --- Global Error Handler ---
 @app.errorhandler(Exception)
 def handle_exception(e):
-    """Log any unhandled exception to Vercel logs."""
     error_trace = traceback.format_exc()
-    # Log to both the file and stderr for Vercel's real-time logs
     app.logger.error(f"Unhandled Exception: {e}\n{error_trace}")
     print(f"Unhandled Exception: {e}\n{error_trace}", file=sys.stderr)
     return jsonify(error="An internal server error occurred."), 500
@@ -83,7 +292,6 @@ def index():
 @app.route('/api/logs')
 @token_required
 def get_logs(current_user):
-    """Secure endpoint to view the last 100 lines of the server log."""
     app.logger.info(f"User '{current_user}' accessed the logs.")
     try:
         with open(LOG_FILE, 'r') as f:

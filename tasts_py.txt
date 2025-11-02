@@ -4,9 +4,9 @@ import platform
 import threading
 import sys
 import json
-import shutil
 import atexit
 from typing import List, Optional
+import getpass
 
 # --- Configuration ---
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -14,11 +14,30 @@ SERVER_DIR = os.path.join(ROOT_DIR, 'server')
 FRONTEND_DIR = ROOT_DIR
 
 PYTHON_SERVER_SCRIPT_TXT = os.path.join(SERVER_DIR, 'server_py.txt')
-NODE_AUTH_SERVER_SCRIPT = os.path.join(SERVER_DIR, 'auth.js')
-PACKAGE_JSON_TXT = os.path.join(SERVER_DIR, 'package_json.txt')
 PACKAGE_JSON = os.path.join(ROOT_DIR, 'package.json')
 
 # --- Helper Functions ---
+
+def get_python_executable():
+    """Returns the path to the python executable, with special handling for user 'Tempo'."""
+    try:
+        # Use getpass.getuser() for better compatibility across environments
+        if getpass.getuser().lower() == 'tempo' and platform.system() == 'Windows':
+            # The user provided `/d/`, which often means `D:` in MSYS/Git Bash environments.
+            # We will construct the standard Windows path.
+            custom_path = os.path.join('D:\\', 'installer_files', '.venv', 'Scripts', 'python.exe')
+            if os.path.exists(custom_path):
+                print(f"Info: Using custom Python executable for user 'Tempo': {custom_path}")
+                return custom_path
+            else:
+                print(f"Warning: Custom Python path for 'Tempo' not found at '{custom_path}'. Falling back to default.")
+    except Exception as e:
+        print(f"Warning: Could not get username or check custom path. Reason: {e}. Falling back to default.")
+    
+    return sys.executable
+
+PYTHON_EXECUTABLE = get_python_executable()
+
 
 def print_header(title: str):
     """Prints a styled header."""
@@ -27,37 +46,37 @@ def print_header(title: str):
     print("=" * 50)
 
 def prepare_package_json():
-    """Ensures package.json exists, creating it from the template if needed."""
+    """Ensures package.json exists, creating it from a default structure if needed."""
     if os.path.exists(PACKAGE_JSON):
         return True
-    if os.path.exists(PACKAGE_JSON_TXT):
-        print(f"Info: '{os.path.basename(PACKAGE_JSON)}' not found. Creating it from template...")
-        try:
-            shutil.copy(PACKAGE_JSON_TXT, PACKAGE_JSON)
-            print(f"Successfully created '{os.path.relpath(PACKAGE_JSON, ROOT_DIR)}'.")
-            return True
-        except Exception as e:
-            print(f"Error: Could not create package.json. Reason: {e}")
-            return False
-    return False
 
-def update_package_json_for_esm():
-    """Ensures package.json has 'type: module' for ES module support."""
-    if not os.path.exists(PACKAGE_JSON):
-        return False
+    print(f"Info: '{os.path.basename(PACKAGE_JSON)}' not found. Creating a default package.json...")
+    
+    default_package_content = {
+      "name": "openexpress-app",
+      "version": "1.0.0",
+      "description": "A UI for a design and content creation app.",
+      "main": "index.js",
+      "type": "module",
+      "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "vercel-build": "cp api/index_py.txt api/index.py"
+      },
+      "author": "",
+      "license": "ISC",
+       "dependencies": {}
+    }
+
     try:
-        with open(PACKAGE_JSON, 'r+') as f:
-            data = json.load(f)
-            if data.get('type') != 'module':
-                print("Info: Adding '\"type\": \"module\"' to package.json for Node.js ES Module support.")
-                data['type'] = 'module'
-                f.seek(0)
-                json.dump(data, f, indent=2)
-                f.truncate()
-    except (json.JSONDecodeError, IOError) as e:
-        print(f"Error reading or updating package.json: {e}")
+        with open(PACKAGE_JSON, 'w', encoding='utf-8') as f:
+            json.dump(default_package_content, f, indent=2)
+        print(f"Successfully created '{os.path.relpath(PACKAGE_JSON, ROOT_DIR)}'.")
+        return True
+    except Exception as e:
+        print(f"Error: Could not create package.json. Reason: {e}")
         return False
-    return True
+
 
 def run_command(command: List[str], working_dir: str, name: str, env: Optional[dict] = None):
     """Runs a command in a subprocess and streams its output."""
@@ -93,47 +112,24 @@ def install_dependencies():
     print_header("Installing Dependencies")
     
     print("\n--- Installing Python dependencies ---")
-    run_command([sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'], SERVER_DIR, "pip")
+    run_command([PYTHON_EXECUTABLE, '-m', 'pip', 'install', '-r', 'requirements.txt'], SERVER_DIR, "pip-server")
+    run_command([PYTHON_EXECUTABLE, '-m', 'pip', 'install', '-r', 'requirements.txt'], ROOT_DIR, "pip-vercel")
     
     print("\n--- Installing Node.js dependencies ---")
-    if not prepare_package_json() or not update_package_json_for_esm():
+    if not prepare_package_json():
         print("[npm-ERR] Could not prepare package.json for Node.js. Skipping npm install.")
         return
     run_command(['npm', 'install'], FRONTEND_DIR, "npm")
 
 def run_python_server():
-    """Runs the Python/Flask API server by executing server_py.txt directly."""
-    print_header("Running Python Flask Server")
+    """Runs the Python/Flask API & Auth server."""
+    print_header("Running Python API & Auth Server")
     if not os.path.exists(PYTHON_SERVER_SCRIPT_TXT):
         print(f"[Python API-ERR] Source file not found: {os.path.relpath(PYTHON_SERVER_SCRIPT_TXT, ROOT_DIR)}")
         return
     
-    print(f"[Python API] Executing content of {os.path.relpath(PYTHON_SERVER_SCRIPT_TXT, ROOT_DIR)}...")
-    try:
-        with open(PYTHON_SERVER_SCRIPT_TXT, 'r', encoding='utf-8') as f:
-            server_code = f.read()
-        
-        # Execute the script's code. The globals dict ensures that the
-        # `if __name__ == '__main__':` block inside the script is triggered.
-        # This will block the current thread, which is desired behavior.
-        exec(server_code, {'__name__': '__main__'})
-    except Exception as e:
-        print(f"[Python API-ERR] An error occurred while executing the server script: {e}")
-
-
-def run_node_auth_server():
-    """Runs the Node.js/Express authentication server."""
-    print_header("Running Node.js Auth Server")
-    if not os.path.exists(NODE_AUTH_SERVER_SCRIPT):
-        print(f"[{'Node Auth'}-ERR] Script not found: {os.path.relpath(NODE_AUTH_SERVER_SCRIPT, ROOT_DIR)}")
-        return
-    if not prepare_package_json() or not update_package_json_for_esm():
-        print("Could not prepare package.json for Node.js server. Aborting.")
-        return
-
-    env = os.environ.copy()
-    env['PORT'] = '3001'
-    run_command(['node', NODE_AUTH_SERVER_SCRIPT], ROOT_DIR, "Node Auth", env)
+    # Run the .txt file directly with the Python interpreter
+    run_command([PYTHON_EXECUTABLE, PYTHON_SERVER_SCRIPT_TXT], SERVER_DIR, "Python API")
 
 def run_frontend_dev_server():
     """Runs the frontend development server (Vite)."""
@@ -147,24 +143,20 @@ def run_all_services():
     """Runs all services concurrently in separate threads."""
     print_header("Starting All Services")
 
-    # Pre-flight check for Node.js dependencies. If they are missing, install them.
     node_modules_path = os.path.join(FRONTEND_DIR, 'node_modules')
     if not os.path.isdir(node_modules_path):
         print("\nInfo: 'node_modules' directory not found. Running dependency installation first.")
         install_dependencies()
-        # After installation, re-check if node_modules exists before proceeding.
         if not os.path.isdir(node_modules_path):
             print("\nError: Dependency installation failed. Cannot start services.")
             return
 
-    # Pre-flight check for critical script files.
-    if not all(os.path.exists(p) for p in [PYTHON_SERVER_SCRIPT_TXT, NODE_AUTH_SERVER_SCRIPT, PACKAGE_JSON]):
-         print("\nOne or more required script files are missing. Run 'Check Environment' for details.")
+    if not os.path.exists(PYTHON_SERVER_SCRIPT_TXT):
+         print("\nRequired Python server script is missing. Run 'Check Environment' for details.")
          return
 
     threads = [
         threading.Thread(target=run_python_server),
-        threading.Thread(target=run_node_auth_server),
         threading.Thread(target=run_frontend_dev_server)
     ]
     
@@ -182,14 +174,12 @@ def check_environment():
     print_header("Checking Environment")
     
     pkg_json_ok = prepare_package_json()
-    esm_ok = update_package_json_for_esm() if pkg_json_ok else False
 
     checks = {
         "Python Server Source (server_py.txt)": os.path.exists(PYTHON_SERVER_SCRIPT_TXT),
-        "Node Auth Script (auth.js)": os.path.exists(NODE_AUTH_SERVER_SCRIPT),
         "package.json in root": pkg_json_ok,
-        "package.json ESM config": esm_ok,
-        "Python requirements.txt": os.path.exists(os.path.join(SERVER_DIR, 'requirements.txt')),
+        "Python requirements.txt (server)": os.path.exists(os.path.join(SERVER_DIR, 'requirements.txt')),
+        "Python requirements.txt (vercel)": os.path.exists(os.path.join(ROOT_DIR, 'requirements.txt')),
         "Secrets .env file": os.path.exists(os.path.join(ROOT_DIR, 'secrets', '.env')),
     }
     
@@ -210,12 +200,11 @@ def main():
     """Main function to display the menu and handle user input."""
     menu = {
         '1': ('Install Dependencies', install_dependencies),
-        '2': ('Run Python API Server', run_python_server),
-        '3': ('Run Node.js Auth Server', run_node_auth_server),
-        '4': ('Run Frontend Dev Server', run_frontend_dev_server),
-        '5': ('Run All Services (Concurrent)', run_all_services),
-        '6': ('Check Environment', check_environment),
-        '7': ('Exit', lambda: sys.exit(0)),
+        '2': ('Run Python API & Auth Server', run_python_server),
+        '3': ('Run Frontend Dev Server', run_frontend_dev_server),
+        '4': ('Run All Services (Concurrent)', run_all_services),
+        '5': ('Check Environment', check_environment),
+        '6': ('Exit', lambda: sys.exit(0)),
     }
     while True:
         print_header("Developer Task Runner")
