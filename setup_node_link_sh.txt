@@ -1,26 +1,36 @@
 #!/bin/bash
 
 # A robust script to create a symbolic link, designed to be called from Python.
-# It ensures the target path is clean before creating the link.
+# It ensures the target path is clean before creating the link and handles
+# the conversion of Windows-style paths to a format bash understands.
 
 # --- Configuration ---
 set -e # Exit immediately if a command exits with a non-zero status.
 
 # --- Arguments ---
-CENTRAL_NODE_MODULES="$1"
-PROJECT_NODE_MODULES_LINK="$2"
+CENTRAL_NODE_MODULES_WIN="$1"
+PROJECT_NODE_MODULES_LINK_WIN="$2"
 
-if [ -z "$CENTRAL_NODE_MODULES" ] || [ -z "$PROJECT_NODE_MODULES_LINK" ]; then
+if [ -z "$CENTRAL_NODE_MODULES_WIN" ] || [ -z "$PROJECT_NODE_MODULES_LINK_WIN" ]; then
     echo "❌ Error: Missing arguments."
     echo "Usage: bash setup_node_link_sh.txt <target_directory> <link_name>"
     exit 1
 fi
 
-echo "-> Preparing to link project node_modules."
-echo "   - Target: $CENTRAL_NODE_MODULES"
-echo "   - Link Name: $PROJECT_NODE_MODULES_LINK"
+# --- Path Conversion for Bash ---
+# Convert Windows paths (e.g., C:\Users\Test) to a format that Git Bash/MINGW64
+# can understand for commands like `ln -s` (e.g., /c/Users/Test).
+echo "-> Converting Windows paths to Bash-compatible paths..."
+CENTRAL_NODE_MODULES=$(echo "$CENTRAL_NODE_MODULES_WIN" | sed -e 's|\\|/|g' -e 's|^\([A-Za-z]\):|/\L\1|')
+PROJECT_NODE_MODULES_LINK=$(echo "$PROJECT_NODE_MODULES_LINK_WIN" | sed -e 's|\\|/|g' -e 's|^\([A-Za-z]\):|/\L\1|')
+echo "   - Original Target:   $CENTRAL_NODE_MODULES_WIN"
+echo "   - Converted Target:  $CENTRAL_NODE_MODULES"
+echo "   - Original Link:     $PROJECT_NODE_MODULES_LINK_WIN"
+echo "   - Converted Link:    $PROJECT_NODE_MODULES_LINK"
 
 # --- Main Logic ---
+echo "-> Preparing to link project node_modules."
+
 # 1. Remove old node_modules in the project if it exists (as a link or directory)
 if [ -L "$PROJECT_NODE_MODULES_LINK" ] || [ -d "$PROJECT_NODE_MODULES_LINK" ]; then
     echo "-> Found existing item at '$PROJECT_NODE_MODULES_LINK'. Removing it..."
