@@ -1,1 +1,525 @@
-full content of server/server_py.txt
+import os
+import time
+from functools import wraps
+import jwt
+from flask import Flask, request, jsonify, redirect, url_for, session
+from flask_cors import CORS
+from dotenv import load_dotenv
+import google.generativeai as genai
+import logging
+from logging.handlers import RotatingFileHandler
+import traceback
+import sys
+import platform
+import json
+from authlib.integrations.flask_client import OAuth
+
+# --- Environment and Path Configuration ---
+SERVER_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(SERVER_DIR)
+
+# Standard paths
+default_dotenv_path = os.path.join(ROOT_DIR, 'secrets', '.env')
+default_log_dir = os.path.join(ROOT_DIR, 'logs')
+default_db_path = os.path.join(SERVER_DIR, 'db.json')
+
+# User-specific overrides for 'Tempo' on Windows
+dotenv_path_user = r'F:\Codebase\EnvSetup\cred\.env\OpenExpress\.env'
+log_dir_user = r'F:\Codebase\EnvSetup\cred\.env\OpenExpress\logs'
+
+# Determine which paths to use
+is_tempo_user = platform.system() == 'Windows' and os.path.exists(os.path.dirname(log_dir_user))
+
+dotenv_path = dotenv_path_user if is_tempo_user and os.path.exists(dotenv_path_user) else default_dotenv_path
+log_dir = log_dir_user if is_tempo_user else default_log_dir
+DB_PATH = default_db_path # Keep database local to server directory
+
+# Load environment variables
+loaded_path = None
+if os.path.exists(dotenv_path):
+    load_dotenv(dotenv_path=dotenv_path)
+    loaded_path = dotenv_path
+
+app = Flask(__name__)
+app.secret_key = os.environ.get('SESSION_SECRET', 'a_very_secret_key_for_sessions')
+CORS(app)
+
+# --- Logging Setup ---
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+LOG_FILE = os.path.join(log_dir, 'server.log')
+
+handler = RotatingFileHandler(LOG_FILE, maxBytes=100000, backupCount=3)
+handler.setFormatter(logging.Formatter(
+    '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+))
+app.logger.setLevel(logging.INFO)
+app.logger.addHandler(handler)
+
+app.logger.info("="*50)
+app.logger.info("Flask server process started.")
+app.logger.info(f"Using log file at: {LOG_FILE}")
+if loaded_path:
+    app.logger.info(f"Loaded .env from: {loaded_path}")
+else:
+    app.logger.warning("Warning: No .env file found. Using system environment variables.")
+
+# Load secrets from environment variables.
+JWT_SECRET = os.environ.get('JWT_SECRET', 'your-super-secret-jwt-key-here')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+    app.logger.info("Gemini API configured successfully.")
+else:
+    app.logger.warning("GEMINI_API_KEY is not set. AI features will be disabled.")
+
+# --- User Database ---
+def read_db():
+    try:
+        with open(DB_PATH, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {'users': {}}
+
+def write_db(data):
+    with open(DB_PATH, 'w') as f:
+        json.dump(data, f, indent=2)
+
+def find_or_create_user(profile, provider, tokens):
+    db = read_db()
+    user_key = f"{provider}:{profile['id']}"
+    user = db['users'].get(user_key)
+    
+    if user:
+        user['tokens'] = tokens
+        user['lastLoginAt'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+    else:
+        user = {
+            'id': user_key,
+            'provider': provider,
+            'profileId': profile['id'],
+            'displayName': profile.get('displayName'),
+            'email': profile.get('email'),
+            'photo': profile.get('photo'),
+            'tokens': tokens,
+            'createdAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            'lastLoginAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+        }
+    
+    db['users'][user_key] = user
+    write_db(db)
+    return user
+
+# --- OAuth Setup ---
+oauth = OAuth(app)
+
+# Meta (Facebook)
+if os.environ.get('FACEBOOK_APP_ID'):
+    oauth.register(
+        name='facebook',
+        client_id=os.environ.get('FACEBOOK_APP_ID'),
+        client_secret=os.environ.get('FACEBOOK_APP_SECRET'),
+        access_token_url='https://graph.facebook.com/oauth/access_token',
+        authorize_url='https://www.facebook.com/dialog/oauth',
+        api_base_url='https://graph.facebook.com/',
+        client_kwargs={'scope': 'email public_profile'},
+    )
+
+# X (Twitter) - Uses OAuth 1.0a
+if os.environ.get('TWITTER_CONSUMER_KEY'):
+    oauth.register(
+        name='twitter',
+        client_id=os.environ.get('TWITTER_CONSUMER_KEY'),
+        client_secret=os.environ.get('TWITTER_CONSUMER_SECRET'),
+        request_token_url='https://api.twitter.com/oauth/request_token',
+        access_token_url='https://api.twitter.com/oauth/access_token',
+        authorize_url='https://api.twitter.com/oauth/authenticate',
+        api_base_url='https://api.twitter.com/1.1/',
+        fetch_request_token=True,
+    )
+
+# LinkedIn
+if os.environ.get('LINKEDIN_CLIENT_ID'):
+    oauth.register(
+        name='linkedin',
+        client_id=os.environ.get('LINKEDIN_CLIENT_ID'),
+        client_secret=os.environ.get('LINKEDIN_CLIENT_SECRET'),
+        access_token_url='https://www.linkedin.com/oauth/v2/accessToken',
+        authorize_url='https://www.linkedin.com/oauth/v2/authorization',
+        api_base_url='https://api.linkedin.com/v2/',
+        client_kwargs={'scope': 'r_liteprofile r_emailaddress'},
+    )
+
+# TikTok
+if os.environ.get('TIKTOK_CLIENT_KEY'):
+    oauth.register(
+        name='tiktok',
+        client_id=os.environ.get('TIKTOK_CLIENT_KEY'),
+        client_secret=os.environ.get('TIKTOK_CLIENT_SECRET'),
+        access_token_url='https://open-api.tiktok.com/oauth/access_token/',
+        authorize_url='https://www.tiktok.com/auth/authorize/',
+        api_base_url='https://open-api.tiktok.com/',
+        client_kwargs={'scope': 'user.info.basic'},
+    )
+
+# --- Auth Helper Functions ---
+def generate_auth_success_response(platform, user):
+    user_payload = {
+        'id': user['id'],
+        'displayName': user['displayName'],
+        'provider': user['provider']
+    }
+    token = jwt.encode(user_payload, JWT_SECRET, algorithm='HS256')
+    return f"""
+      <script>
+        window.opener.postMessage({{ type: 'auth-success', platform: '{platform}', token: '{token}' }}, '*');
+        window.close();
+      </script>
+      <h1>Authentication Successful!</h1><p>You can close this window.</p>
+    """
+
+def generate_auth_failure_response(platform, error_message="Authentication Failed"):
+    app.logger.error(f"Auth failure for {platform}: {error_message}")
+    return f"""
+        <script>
+            window.opener.postMessage({{ type: 'auth-failure', platform: '{platform}' }}, '*');
+            window.close();
+        </script>
+        <h1>Authentication Failed</h1><p>Please try again. You can close this window.</p>
+    """, 401
+
+# --- Authentication Routes ---
+@app.route('/auth/<name>')
+def login(name):
+    client = oauth.create_client(name)
+    if not client:
+        return 'Unknown provider', 404
+    redirect_uri = url_for(f'{name}_callback', _external=True)
+    return client.authorize_redirect(redirect_uri)
+
+@app.route('/auth/facebook/callback-code-only')
+def facebook_callback_code_only():
+    code = request.args.get('code')
+    if not code:
+        return generate_auth_failure_response('meta', 'No code received from Facebook')
+    
+    # This endpoint is specifically for the developer tools to grab the code.
+    # It sends the code back to the parent window and closes itself.
+    return f"""
+      <script>
+        window.opener.postMessage({{ type: 'auth-code-received', platform: 'meta', code: '{code}' }}, '*');
+        window.close();
+      </script>
+      <h1>Code captured!</h1><p>You can close this window.</p>
+    """
+
+@app.route('/auth/facebook/callback')
+def facebook_callback():
+    try:
+        token = oauth.facebook.authorize_access_token()
+        resp = oauth.facebook.get('me?fields=id,name,email,picture')
+        resp.raise_for_status()
+        profile = resp.json()
+        profile_mapped = {
+            'id': profile['id'],
+            'displayName': profile.get('name'),
+            'email': profile.get('email'),
+            'photo': profile.get('picture', {}).get('data', {}).get('url')
+        }
+        user = find_or_create_user(profile_mapped, 'facebook', token)
+        return generate_auth_success_response('meta', user)
+    except Exception as e:
+        return generate_auth_failure_response('meta', str(e))
+
+@app.route('/auth/twitter/callback')
+def twitter_callback():
+    try:
+        token = oauth.twitter.authorize_access_token()
+        resp = oauth.twitter.get('account/verify_credentials.json?include_email=true')
+        resp.raise_for_status()
+        profile = resp.json()
+        profile_mapped = {
+            'id': profile['id_str'],
+            'displayName': profile.get('name'),
+            'email': profile.get('email'),
+            'photo': profile.get('profile_image_url_https')
+        }
+        user = find_or_create_user(profile_mapped, 'twitter', token)
+        return generate_auth_success_response('x', user)
+    except Exception as e:
+        return generate_auth_failure_response('x', str(e))
+
+@app.route('/auth/linkedin/callback')
+def linkedin_callback():
+    try:
+        token = oauth.linkedin.authorize_access_token()
+        resp_profile = oauth.linkedin.get('me')
+        resp_profile.raise_for_status()
+        profile = resp_profile.json()
+        
+        resp_email = oauth.linkedin.get('emailAddress?q=members&projection=(elements*(handle~))')
+        resp_email.raise_for_status()
+        email_data = resp_email.json()
+        email = email_data.get('elements', [{}])[0].get('handle~', {}).get('emailAddress')
+
+        profile_mapped = {
+            'id': profile['id'],
+            'displayName': f"{profile.get('localizedFirstName')} {profile.get('localizedLastName')}",
+            'email': email
+        }
+        user = find_or_create_user(profile_mapped, 'linkedin', token)
+        return generate_auth_success_response('linkedin', user)
+    except Exception as e:
+        return generate_auth_failure_response('linkedin', str(e))
+
+@app.route('/auth/tiktok/callback')
+def tiktok_callback():
+    try:
+        token = oauth.tiktok.authorize_access_token()
+        resp = oauth.tiktok.get('v2/user/info/?fields=open_id,display_name,avatar_url')
+        resp.raise_for_status()
+        profile_data = resp.json().get('data', {}).get('user', {})
+        profile_mapped = {
+            'id': profile_data['open_id'],
+            'displayName': profile_data.get('display_name'),
+            'photo': profile_data.get('avatar_url')
+        }
+        user = find_or_create_user(profile_mapped, 'tiktok', token)
+        return generate_auth_success_response('tiktok', user)
+    except Exception as e:
+        return generate_auth_failure_response('tiktok', str(e))
+
+# --- Authentication Decorator ---
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        if 'authorization' in request.headers:
+            token = request.headers['authorization'].split(' ')[1]
+        
+        if not token:
+            app.logger.warning("Auth token is missing!")
+            return jsonify({'error': 'Token is missing!'}), 401
+        
+        try:
+            data = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+            current_user = data['id']
+        except jwt.ExpiredSignatureError:
+            app.logger.warning("Expired token received.")
+            return jsonify({'error': 'Token has expired!'}), 401
+        except jwt.InvalidTokenError:
+            app.logger.error("Invalid token received.")
+            return jsonify({'error': 'Token is invalid!'}), 401
+        
+        return f(current_user, *args, **kwargs)
+    return decorated
+
+# --- Global Error Handler ---
+@app.errorhandler(Exception)
+def handle_exception(e):
+    error_trace = traceback.format_exc()
+    app.logger.error(f"Unhandled Exception: {e}\n{error_trace}")
+    print(f"Unhandled Exception: {e}\n{error_trace}", file=sys.stderr)
+    return jsonify(error="An internal server error occurred."), 500
+
+
+# --- API Routes ---
+@app.route('/')
+@app.route('/api/status')
+def index():
+  return jsonify(message='OpenExpress Python server is running!')
+
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204
+
+@app.route('/api/logs')
+@token_required
+def get_logs(current_user):
+    app.logger.info(f"User '{current_user}' accessed the logs.")
+    try:
+        with open(LOG_FILE, 'r') as f:
+            lines = f.readlines()
+            log_content = "".join(lines[-100:])
+        return jsonify(logs=log_content or "Log file is empty.")
+    except FileNotFoundError:
+        return jsonify(logs="Log file not found.")
+    except Exception as e:
+        app.logger.error(f"Could not read log file: {e}")
+        return jsonify(error="Could not retrieve logs."), 500
+
+@app.route('/api/ai-suggestions', methods=['POST'])
+def get_ai_suggestions():
+    if not GEMINI_API_KEY:
+        return jsonify({'error': 'The AI service is not configured on the server; API key is missing.'}), 503
+
+    data = request.get_json()
+    if not data or 'prompt' not in data:
+        app.logger.warning("AI suggestions request missing prompt.")
+        return jsonify({'error': 'A "prompt" is required in the request body.'}), 400
+    
+    user_prompt = data['prompt']
+    app.logger.info(f"Received AI suggestion request with prompt: '{user_prompt[:50]}...'")
+
+    try:
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        full_prompt = f"""
+          You are an expert UI/UX and graphic designer.
+          A user is asking for design suggestions for the following concept: "{user_prompt}".
+          Please provide 3 distinct and creative design ideas. For each idea, suggest:
+          1.  A concept or theme.
+          2.  A color palette (with hex codes).
+          3.  Font pairings (one for headings, one for body).
+          4.  A brief layout description.
+          Format your response clearly.
+        """
+        response = model.generate_content(full_prompt)
+        return jsonify({'suggestions': response.text})
+
+    except Exception as e:
+        app.logger.error(f"Error calling Gemini API: {e}")
+        return jsonify({'error': f'Failed to get suggestions from the AI model.'}), 500
+
+@app.route('/api/ai-post-ideas', methods=['POST'])
+@token_required
+def get_ai_post_ideas(current_user):
+    if not GEMINI_API_KEY:
+        return jsonify({'error': 'The AI service is not configured on the server.'}), 503
+
+    data = request.get_json()
+    if not data or 'brand' not in data or 'platform' not in data:
+        app.logger.warning("AI post ideas request missing brand or platform.")
+        return jsonify({'error': 'Both "brand" and "platform" are required.'}), 400
+    
+    brand = data['brand']
+    platform = data['platform']
+    app.logger.info(f"User '{current_user}' requested AI post ideas for {brand} on {platform}.")
+
+    try:
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        full_prompt = f"""
+          You are a creative social media marketing expert.
+          A user wants post ideas for the brand "{brand}" on the platform "{platform}".
+          Please provide 3 distinct, concise, and engaging post ideas as a simple list.
+          Each idea should be a single sentence or a short phrase, suitable for a user to click and use as a post template.
+          Do not use any special formatting like numbers, bullets, or markdown.
+          Return ONLY the 3 ideas, separated by a newline character.
+
+          Example for "Nike" on "Instagram":
+          Showcasing the new Air Max in a dynamic city setting.
+          A user-generated content challenge asking followers to share their #NikeAdventures.
+          A quick tutorial on the best stretches to do before a run.
+        """
+        response = model.generate_content(full_prompt)
+        
+        # Split the text response into a list of ideas
+        ideas = [idea.strip() for idea in response.text.split('\n') if idea.strip()]
+        
+        return jsonify({'ideas': ideas})
+
+    except Exception as e:
+        app.logger.error(f"Error calling Gemini API for post ideas: {e}")
+        return jsonify({'error': f'Failed to get suggestions from the AI model.'}), 500
+
+# --- Stubbed API endpoints (previously in Node.js) ---
+@app.route('/api/meta/page/video', methods=['POST'])
+@token_required
+def post_video_to_page(current_user):
+    return jsonify(message=f"Request to post video to Page received for user {current_user}.", note="This is a simulated success response."), 200
+
+@app.route('/api/meta/group/video', methods=['POST'])
+@token_required
+def post_video_to_group(current_user):
+    return jsonify(message=f"Request to post video to Group received for user {current_user}.", note="This is a simulated success response."), 200
+
+@app.route('/api/twitter/tweet', methods=['POST'])
+@token_required
+def post_tweet(current_user):
+    return jsonify(message=f"Tweet received from {current_user}.", note="This is a simulated success response."), 200
+    
+@app.route('/api/linkedin/profile/post', methods=['POST'])
+@token_required
+def post_to_linkedin_profile(current_user):
+    return jsonify(message=f"LinkedIn post received from {current_user}.", note="This is a simulated success response."), 200
+
+@app.route('/api/tiktok/user', methods=['GET'])
+@token_required
+def get_tiktok_user_info(current_user):
+    return jsonify(message=f"Successfully fetched user info for {current_user}.", data={'note': "This is simulated user data."}), 200
+
+# --- Existing App Routes ---
+@app.route('/api/save-design', methods=['POST'])
+@token_required
+def save_design(current_user):
+  if not request.json or 'title' not in request.json:
+    app.logger.warning(f"User {current_user} made a save-design request with missing title.")
+    return jsonify(error='Design title is required.'), 400
+  
+  app.logger.info(f'User {current_user} saved design: {request.json.get("title")}')
+  return jsonify(
+    message='Design saved successfully!', 
+    designId=f'dsn_{int(time.time())}',
+    dataReceived=request.json 
+  ), 201
+
+@app.route('/api/schedule-post', methods=['POST'])
+@token_required
+def schedule_post(current_user):
+    data = request.get_json()
+    if not all(key in data for key in ['accountId', 'platform', 'content']):
+        app.logger.warning(f"User {current_user} made a schedule-post request with missing data. Required: accountId, platform, content.")
+        return jsonify(error='Missing required fields for scheduling.'), 400
+    
+    app.logger.info(f"User {current_user} scheduled a post for account {data['accountId']} on {data['platform']}.")
+    return jsonify(message=f"Post for account {data['accountId']} on {data['platform']} has been scheduled!"), 201
+
+@app.route('/api/image-upload', methods=['POST'])
+def upload_image():
+  if 'image_file' not in request.files:
+    app.logger.warning("Image upload attempt with no file part.")
+    return jsonify(error='No image file provided.'), 400
+  
+  file = request.files['image_file']
+  if file.filename == '':
+    app.logger.warning("Image upload attempt with empty filename.")
+    return jsonify(error='No selected file.'), 400
+
+  if file:
+    app.logger.info(f"Received image file for upload: {file.filename}")
+    return jsonify(
+        message='Image uploaded successfully!',
+        imageUrl=f'https://fake-cdn.com/images/{file.filename}'
+    ), 200
+    
+@app.route('/api/feature-analysis', methods=['POST'])
+@token_required
+def save_feature_analysis(current_user):
+    data = request.get_json()
+    if not data or 'content' not in data:
+        app.logger.warning("Save feature analysis request missing content.")
+        return jsonify(error='Content is required.'), 400
+    
+    content = data['content']
+    # Security: Ensure we only write to the intended file.
+    file_path = os.path.join(ROOT_DIR, 'feature-analysis', 'content-planner-comparison.md')
+    
+    # Check if the path is within the allowed directory
+    if not os.path.abspath(file_path).startswith(os.path.abspath(os.path.join(ROOT_DIR, 'feature-analysis'))):
+        app.logger.error(f"SECURITY ALERT: User {current_user} attempted path traversal to write to {file_path}")
+        return jsonify(error='Invalid file path.'), 403
+
+    try:
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        app.logger.info(f"User {current_user} updated feature-analysis file.")
+        return jsonify(message="Feature analysis saved successfully."), 200
+    except Exception as e:
+        app.logger.error(f"Error saving feature analysis file: {e}")
+        return jsonify(error="Failed to save file on server."), 500
+
+
+# Start the server for local development
+if __name__ == '__main__':
+  port = int(os.environ.get('PORT', 8080))
+  app.run(host='0.0.0.0', port=port, debug=True)
