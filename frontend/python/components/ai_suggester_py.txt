@@ -1,0 +1,32 @@
+
+import sys
+import os
+
+# Adjust path for sibling imports
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+
+from services import api_client_py
+from utils import ui_py
+
+def run():
+    """Runs the AI Design Suggester flow."""
+    ui_py.print_header("AI Design Suggester")
+    
+    prompt = input("Describe your design idea (e.g., a modern banner for a coffee shop): \n> ")
+    if not prompt.strip():
+        ui_py.print_error("Prompt cannot be empty.")
+        return
+
+    try:
+        print("\nGenerating suggestions with AI...")
+        suggestions = api_client_py.get_design_suggestions(prompt)
+        
+        ui_py.print_header("Generated Suggestions")
+        print(suggestions)
+
+    except Exception as e:
+        ui_py.print_error(f"Failed to get suggestions: {e}")
+
+if __name__ == "__main__":
+    # Allow running this script directly for testing
+    run()

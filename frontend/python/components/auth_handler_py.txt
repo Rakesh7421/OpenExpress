@@ -1,0 +1,55 @@
+
+import os
+from utils import ui_py
+
+# Use a file in the user's home directory to store the token for persistence.
+TOKEN_FILE_PATH = os.path.expanduser("~/.openexpress_cli_token")
+
+def save_token(token):
+    """Saves the JWT to a local file."""
+    try:
+        with open(TOKEN_FILE_PATH, 'w') as f:
+            f.write(token)
+        print("✅ Authentication token saved successfully.")
+    except IOError as e:
+        ui_py.print_error(f"Could not save token file: {e}")
+
+def load_token():
+    """Loads the JWT from the local file."""
+    if not os.path.exists(TOKEN_FILE_PATH):
+        return None
+    try:
+        with open(TOKEN_FILE_PATH, 'r') as f:
+            return f.read().strip()
+    except IOError as e:
+        ui_py.print_error(f"Could not read token file: {e}")
+        return None
+
+def prompt_and_save_token():
+    """Prompts the user to enter their JWT and saves it."""
+    ui_py.print_header("Authentication Setup")
+    print("This CLI needs an authentication token (JWT) from the web UI.")
+    print("Please log in to a service (e.g., Meta) in the web app's 'Branding' panel.")
+    print("Then, find the token in your browser's Local Storage and paste it here.")
+    
+    token = input("Paste your JWT token here: ").strip()
+    if token:
+        save_token(token)
+    else:
+        ui_py.print_error("No token was entered.")
+
+def ensure_token_exists():
+    """Checks if a token exists, and if not, prompts the user for one."""
+    if not load_token():
+        prompt_and_save_token()
+        if not load_token():
+            ui_py.print_error("Authentication token not found. Exiting.")
+            exit(1)
+
+if __name__ == "__main__":
+    # For testing the auth handler functions
+    prompt_and_save_token()
+    loaded = load_token()
+    if loaded:
+        print("\nToken loaded successfully:")
+        print(f"{loaded[:30]}...")

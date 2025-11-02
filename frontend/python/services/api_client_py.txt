@@ -1,0 +1,85 @@
+
+import requests
+import json
+import sys
+import os
+
+# Adjust path for sibling imports
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+
+from components import auth_handler_py
+
+BASE_URL = "http://localhost:8080" # Assumes the Python server is running locally
+
+def _make_request(method, endpoint, data=None, headers=None, authenticated=False):
+    """Helper function to make requests to the backend API."""
+    url = f"{BASE_URL}{endpoint}"
+    
+    if headers is None:
+        headers = {'Content-Type': 'application/json'}
+
+    if authenticated:
+        token = auth_handler_py.load_token()
+        if not token:
+            raise PermissionError("Authentication token not found. Please run the auth setup.")
+        headers['Authorization'] = f'Bearer {token}'
+
+    try:
+        if method.upper() == 'GET':
+            response = requests.get(url, headers=headers)
+        elif method.upper() == 'POST':
+            response = requests.post(url, data=json.dumps(data), headers=headers)
+        else:
+            raise ValueError(f"Unsupported HTTP method: {method}")
+
+        response.raise_for_status()  # Raises an HTTPError for bad responses (4xx or 5xx)
+        return response.json()
+
+    except requests.exceptions.RequestException as e:
+        # Handle connection errors, timeouts, etc.
+        error_message = f"API request failed: {e}"
+        # Try to get more specific error from response if available
+        if e.response is not None:
+            try:
+                error_details = e.response.json().get('error', e.response.text)
+                error_message = f"API request failed with status {e.response.status_code}: {error_details}"
+            except json.JSONDecodeError:
+                pass # Use the generic message
+        raise ConnectionError(error_message) from e
+
+def get_design_suggestions(prompt):
+    """Calls the backend to get AI design suggestions."""
+    payload = {'prompt': prompt}
+    response = _make_request('POST', '/api/ai-suggestions', data=payload)
+    return response.get('suggestions', 'No suggestions returned.')
+
+def get_post_ideas(brand, platform):
+    """Calls the backend to get AI post ideas (authenticated)."""
+    payload = {'brand': brand, 'platform': platform}
+    response = _make_request('POST', '/api/ai-post-ideas', data=payload, authenticated=True)
+    return response.get('ideas', [])
+
+def schedule_post(brand, platform, content):
+    """Calls the backend to schedule a post (authenticated)."""
+    payload = {'brand': brand, 'platform': platform, 'content': content}
+    return _make_request('POST', '/api/schedule-post', data=payload, authenticated=True)
+
+if __name__ == "__main__":
+    # Example usage for testing the client
+    print("Testing API client...")
+    try:
+        # Test 1: Unauthenticated endpoint
+        print("\n--- Testing AI Design Suggestions ---")
+        suggestions = get_design_suggestions("a logo for a space company")
+        print("Success! Received suggestions.")
+
+        # Test 2: Authenticated endpoint
+        print("\n--- Testing AI Post Ideas (requires auth) ---")
+        auth_handler_py.ensure_token_exists() # Make sure we have a token
+        ideas = get_post_ideas("Nike", "Instagram")
+        print(f"Success! Received {len(ideas)} ideas.")
+
+    except (PermissionError, ConnectionError) as e:
+        print(f"\nTest failed as expected or due to connection issue: {e}")
+    except Exception as e:
+        print(f"\nAn unexpected error occurred during testing: {e}")

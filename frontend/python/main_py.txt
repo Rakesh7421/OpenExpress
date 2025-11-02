@@ -1,0 +1,46 @@
+
+import sys
+import os
+
+# Add the parent directory to the path to allow for sibling imports
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from components import ai_suggester_py, content_planner_py, auth_handler_py
+from utils import ui_py
+
+def main():
+    """Main function to run the CLI application."""
+    auth_handler_py.ensure_token_exists()
+
+    menu = {
+        '1': ('AI Design Suggester', ai_suggester_py.run),
+        '2': ('Content Planner', content_planner_py.run),
+        '3': ('Update Authentication Token', auth_handler_py.prompt_and_save_token),
+        '4': ('Exit', lambda: sys.exit(0))
+    }
+
+    while True:
+        ui_py.print_header("OpenExpress Python Frontend")
+        for key, (text, _) in menu.items():
+            print(f"  {key}. {text}")
+        
+        choice = input("\nSelect an option: ").strip()
+
+        action = menu.get(choice)
+        if action:
+            action[1]() # Call the function
+        else:
+            ui_py.print_error("Invalid option, please try again.")
+        
+        input("\nPress Enter to continue...")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nExiting...")
+        sys.exit(0)
+    except Exception as e:
+        ui_py.print_error(f"An unexpected error occurred: {e}")
+

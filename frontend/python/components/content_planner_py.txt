@@ -1,0 +1,70 @@
+
+import sys
+import os
+
+# Adjust path for sibling imports
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+
+from services import api_client_py
+from utils import ui_py
+
+BRANDS = ['Nike', 'Adidas', 'Puma']
+PLATFORMS = ['Facebook', 'Instagram', 'X', 'LinkedIn', 'TikTok']
+
+def run():
+    """Runs the Content Planner flow."""
+    ui_py.print_header("Content Planner")
+
+    print("Select a brand:")
+    for i, brand in enumerate(BRANDS, 1):
+        print(f"  {i}. {brand}")
+    try:
+        brand_choice = int(input("> ")) - 1
+        selected_brand = BRANDS[brand_choice]
+    except (ValueError, IndexError):
+        ui_py.print_error("Invalid brand selection.")
+        return
+
+    print("\nSelect a platform:")
+    for i, platform in enumerate(PLATFORMS, 1):
+        print(f"  {i}. {platform}")
+    try:
+        platform_choice = int(input("> ")) - 1
+        selected_platform = PLATFORMS[platform_choice]
+    except (ValueError, IndexError):
+        ui_py.print_error("Invalid platform selection.")
+        return
+
+    ui_py.print_header(f"Planning for {selected_brand} on {selected_platform}")
+
+    # --- Generate Ideas ---
+    if input("Generate post ideas with AI? (y/n): ").lower() == 'y':
+        try:
+            print("\nGenerating ideas...")
+            ideas = api_client_py.get_post_ideas(selected_brand, selected_platform)
+            if ideas:
+                print("Here are some ideas:")
+                for i, idea in enumerate(ideas, 1):
+                    print(f"  {i}. {idea}")
+            else:
+                print("AI returned no ideas.")
+        except Exception as e:
+            ui_py.print_error(f"Failed to get AI ideas: {e}")
+
+    # --- Schedule Post ---
+    print("\nEnter your post content below. Press Ctrl+D (Unix) or Ctrl+Z then Enter (Windows) when done.")
+    post_content = sys.stdin.read().strip()
+
+    if not post_content:
+        ui_py.print_error("Post content cannot be empty. Aborting schedule.")
+        return
+    
+    print("\nScheduling post...")
+    try:
+        response = api_client_py.schedule_post(selected_brand, selected_platform, post_content)
+        print(f"✅ Success: {response.get('message', 'Post scheduled.')}")
+    except Exception as e:
+        ui_py.print_error(f"Failed to schedule post: {e}")
+
+if __name__ == "__main__":
+    run()

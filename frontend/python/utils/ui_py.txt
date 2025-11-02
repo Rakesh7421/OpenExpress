@@ -1,0 +1,17 @@
+
+def print_header(title: str):
+    """Prints a styled header to the console."""
+    width = 60
+    print("\n" + "=" * width)
+    print(f" {title.center(width - 2)} ")
+    print("=" * width)
+
+def print_error(message: str):
+    """Prints a styled error message to the console."""
+    print(f"\n❌ Error: {message}")
+
+if __name__ == "__main__":
+    # Example usage
+    print_header("This is a Test Header")
+    print("Some normal content goes here.")
+    print_error("This is what an error message looks like.")
